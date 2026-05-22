@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response, Depends
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 
 from auth import (
     clear_auth_cookies,
@@ -70,8 +70,25 @@ async def me(user: dict = Depends(get_current_user)):
     return _user_to_out(user)
 
 
-@router.post("/refresh")
-async def refresh(response: Response, refresh_token: str | None = None):
-    # Read refresh from cookie
-    from fastapi import Request  # noqa
-    raise HTTPException(status_code=501, detail="Use /login")
+@router.post("/refresh", response_model=UserOut)
+async def refresh(
+    request: Request,
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+):
+    """Issue a new access token using the refresh-token cookie."""
+    token = refresh_token
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    payload = decode_refresh(token)
+    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    new_access = create_access_token(user["id"], user["email"], user["role"])
+    new_refresh = create_refresh_token(user["id"])
+    set_auth_cookies(response, new_access, new_refresh)
+    return _user_to_out(user)
