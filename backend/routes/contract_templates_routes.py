@@ -49,16 +49,20 @@ async def create_document_from_template(payload: DocumentFromTemplateIn, _: dict
 
     if payload.booking_id:
         booking = await db.bookings.find_one({"id": payload.booking_id}, {"_id": 0})
-        if booking and booking.get("user_id") == client["id"]:
-            ctx.update(
-                {
-                    "session_date": booking.get("preferred_date"),
-                    "start_time": booking.get("preferred_time"),
-                    "location": f"{booking.get('location_address', '')}, {booking.get('suburb', '')}".strip(", "),
-                    "primary_contact": f"{client.get('name', '')} {client.get('phone', '')}".strip(),
-                    "total_fee": booking.get("estimated_price"),
-                }
-            )
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        if booking.get("user_id") != client["id"]:
+            raise HTTPException(status_code=400, detail="Booking does not belong to that client")
+        ctx.update(
+            {
+                "session_date": booking.get("preferred_date"),
+                "start_time": booking.get("preferred_time"),
+                "duration_minutes": booking.get("duration_minutes"),
+                "location": f"{booking.get('location_address', '')}, {booking.get('suburb', '')}".strip(", "),
+                "primary_contact": f"{client.get('name', '')} {client.get('phone', '')}".strip(),
+                "total_fee": booking.get("estimated_price"),
+            }
+        )
 
     if payload.overrides:
         ctx.update(payload.overrides)

@@ -47,6 +47,16 @@ async def _next_reference() -> str:
     return f"{prefix}-{year}-{seq:04d}"
 
 
+async def _ensure_reference(inv: dict) -> dict:
+    """Backfill a reference onto any legacy invoice that pre-dates the PayID change."""
+    if inv.get("reference"):
+        return inv
+    new_ref = await _next_reference()
+    await db.invoices.update_one({"id": inv["id"]}, {"$set": {"reference": new_ref}})
+    inv["reference"] = new_ref
+    return inv
+
+
 @router.post("", response_model=InvoiceOut)
 async def create_invoice(payload: InvoiceIn, _: dict = Depends(get_current_admin)):
     ref = await _next_reference()
@@ -75,6 +85,7 @@ async def create_invoice(payload: InvoiceIn, _: dict = Depends(get_current_admin
 async def my_invoices(user: dict = Depends(get_current_user)):
     rows = await db.invoices.find({"client_user_id": user["id"]}, {"_id": 0}).to_list(200)
     rows.sort(key=lambda x: x["created_at"], reverse=True)
+    rows = [await _ensure_reference(r) for r in rows]
     return [_attach_pi(r) for r in rows]
 
 
@@ -82,6 +93,7 @@ async def my_invoices(user: dict = Depends(get_current_user)):
 async def all_invoices(_: dict = Depends(get_current_admin)):
     rows = await db.invoices.find({}, {"_id": 0}).to_list(500)
     rows.sort(key=lambda x: x["created_at"], reverse=True)
+    rows = [await _ensure_reference(r) for r in rows]
     return [_attach_pi(r) for r in rows]
 
 
@@ -92,6 +104,7 @@ async def get_invoice(invoice_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Not found")
     if user["role"] != "admin" and inv["client_user_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Forbidden")
+    inv = await _ensure_reference(inv)
     return _attach_pi(inv)
 
 

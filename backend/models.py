@@ -142,6 +142,8 @@ class DocumentOut(BaseModel):
     signature_name: Optional[str] = None
     signed_at: Optional[str] = None
     created_at: str
+    template_key: Optional[str] = None
+    booking_id: Optional[str] = None
 
 
 class SignIn(BaseModel):

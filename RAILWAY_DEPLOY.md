@@ -1,6 +1,11 @@
 # Railway Deployment Guide — Illuminate Studios
 
-Step-by-step for deploying the full stack to Railway with Postgres + S3-compatible storage. The application is **vendor-neutral** (see `VENDOR_NEUTRAL.md`) — no Emergent dependencies remain in the runtime path.
+Step-by-step for deploying the full stack to Railway with MongoDB Atlas + Cloudflare R2.
+
+**Companion guides** (read these first if you've never used those services):
+- 📘 `MONGODB_ATLAS_SETUP.md` — provision the free-tier Mongo cluster
+- 📘 `CLOUDFLARE_R2_SETUP.md` — provision the photo storage bucket
+- 📘 `VENDOR_NEUTRAL.md` — audit of remaining (optional) Emergent code paths
 
 ---
 

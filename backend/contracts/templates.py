@@ -315,6 +315,7 @@ def fill_placeholders(body: str, ctx: Dict) -> str:
     `ctx` accepts these keys (all optional):
       client_name, client_address, client_email, client_phone,
       session_date (ISO YYYY-MM-DD), location, start_time, end_time,
+      duration_minutes (used to compute end_time when start_time given but end_time isn't),
       primary_contact, total_fee (float), retainer (float), package_inclusion.
     Unfilled placeholders stay as-is so admin can finalise before sending.
     """
@@ -323,6 +324,18 @@ def fill_placeholders(body: str, ctx: Dict) -> str:
     if total is not None and retainer is None:
         retainer = round(total * 0.10, 2)
 
+    # Auto-compute end_time when we have start_time + duration_minutes
+    end_time = ctx.get("end_time")
+    start_time = ctx.get("start_time")
+    duration = ctx.get("duration_minutes")
+    if not end_time and start_time and duration:
+        try:
+            h, m = start_time.split(":")
+            total_min = int(h) * 60 + int(m) + int(duration)
+            end_time = f"{(total_min // 60) % 24:02d}:{total_min % 60:02d}"
+        except Exception:
+            pass
+
     mapping = {
         "[Client name(s)]": ctx.get("client_name", "[Client name(s)]"),
         "[Client address]": ctx.get("client_address", "[Client address]"),
@@ -330,8 +343,8 @@ def fill_placeholders(body: str, ctx: Dict) -> str:
         "[Client phone]": ctx.get("client_phone", "[Client phone]"),
         "[Session / event date]": _fmt_date(ctx.get("session_date")),
         "[Location / venue / address]": ctx.get("location", "[Location / venue / address]"),
-        "[Start time]": ctx.get("start_time", "[Start time]"),
-        "[End time]": ctx.get("end_time", "[End time]"),
+        "[Start time]": start_time or "[Start time]",
+        "[End time]": end_time or "[End time]",
         "[Name and mobile]": ctx.get("primary_contact", "[Name and mobile]"),
         "[Number or package inclusion]": ctx.get("package_inclusion", "[Number or package inclusion]"),
     }
