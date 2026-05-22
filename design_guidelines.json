@@ -1,0 +1,151 @@
+{
+  "project_name": "Photography Management Application",
+  "theme": {
+    "primary_mode": "light",
+    "secondary_mode": "dark",
+    "archetype": "Custom Editorial (Base: Swiss Brutalist + Jewel/Luxury typography)",
+    "vibe": "Elegant, editorial, high-end magazine, unobtrusive but premium."
+  },
+  "colors": {
+    "light_mode": {
+      "background": "#F9F9F7",
+      "foreground": "#1A1A1A",
+      "surface": "#FFFFFF",
+      "border": "#E5E3DB",
+      "primary": "#1A1A1A",
+      "primary_foreground": "#FFFFFF",
+      "muted": "#F0EFEB",
+      "muted_foreground": "#73716A",
+      "accent": "#E5E3DB",
+      "accent_foreground": "#1A1A1A",
+      "danger": "#8C2A2A"
+    },
+    "dark_mode": {
+      "description": "Used EXCLUSIVELY for the immersive lights-out gallery viewer.",
+      "background": "#050505",
+      "foreground": "#FAFAFA",
+      "surface": "#111111",
+      "border": "#222222",
+      "primary": "#FFFFFF",
+      "primary_foreground": "#000000",
+      "muted": "#1A1A1A",
+      "muted_foreground": "#A1A1AA"
+    },
+    "rules": [
+      "Never use pure #000000 or #FFFFFF except in the dark gallery mode.",
+      "No gradients. UI must feel like printed paper and sharp ink.",
+      "Rely on 1px solid borders for separation, not shadows."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Cormorant Garamond",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scales": {
+      "h1": "text-5xl sm:text-6xl lg:text-7xl font-light tracking-tighter leading-none",
+      "h2": "text-4xl sm:text-5xl font-light tracking-tight leading-tight",
+      "h3": "text-2xl sm:text-3xl font-normal tracking-tight",
+      "h4": "text-xl font-medium",
+      "body": "text-base leading-relaxed tracking-normal",
+      "overline": "text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+    },
+    "rules": [
+      "Use Cormorant Garamond exclusively for dramatic, large text (H1, H2, Quotes, Contract Titles).",
+      "Use Manrope for all UI elements, dashboards, forms, and functional text.",
+      "Never center-align large paragraphs. Center-align H1 only if part of a symmetric cover page, otherwise left-align.",
+      "Use extremely tight letter spacing on large serif headings."
+    ]
+  },
+  "spacing_and_layout": {
+    "generous_spacing": true,
+    "container_padding": "p-6 md:p-12 lg:p-24",
+    "grid_modes": {
+      "marketing": {
+        "description": "The Tetris Grid",
+        "classes": "grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-16",
+        "rules": "Asymmetric, overlapping elements. Leave empty cells for negative space."
+      },
+      "dashboard": {
+        "description": "The Control Room Grid",
+        "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+        "rules": "Dense, functional, strict alignment. 1px borders between widgets."
+      }
+    },
+    "surfaces": "Grid Borders style. Expose the skeleton. Use border-collapse style layouts with sharp 0px border-radius (or max 2px). NO glassmorphism. NO drop shadows."
+  },
+  "components": {
+    "buttons": "Square or extremely subtle rounding (rounded-sm). Solid black (primary) or transparent with 1px black border (outline). Hover states invert or change opacity slightly.",
+    "cards": "Flat. 1px solid border. No shadow. Background matches parent or slightly offset (Surface color).",
+    "inputs": "Shadcn defaults but remove border-radius. Use bottom-border only (flushed) for a printed form look in marketing, or full sharp box in the dashboard.",
+    "dialogs": "Sharp corners, stark contrast, dimmed solid black backdrop (bg-black/80) instead of blurred.",
+    "navigation": "Header must have solid background (bg-background) or a sharp bottom border to separate from hero. Not transparent."
+  },
+  "motion_and_interactions": {
+    "rules": [
+      "Micro-interactions only for standard UI (hover states, focus rings).",
+      "Use framer-motion for smooth staggered fade-ins on the marketing page.",
+      "Image Gallery transition must be slow and cinematic (e.g., 0.6s ease-in-out) fading everything to black.",
+      "Focus states: ring-1 ring-offset-2 ring-primary sharp."
+    ]
+  },
+  "page_specific_instructions": {
+    "lights_out_gallery": [
+      "CRITICAL FEATURE: When a user clicks on an image in a gallery, activate 'Lights-Out' mode.",
+      "Implementation: Use global state (Zustand/Context). When active, hide the main Navbar and Footer. Change body background to #050505.",
+      "UI: Only show the high-res image, minimal left/right arrows (thin stroke icons), and a subtle 'Close' icon (X) in the top right.",
+      "No text or descriptions should be visible unless explicitly hovered."
+    ],
+    "contract_viewer": [
+      "Design like a physical piece of A4 paper. Center a white #FFFFFF container with max-w-3xl on a muted grey background.",
+      "Use serif typography for the contract body.",
+      "Signature block should use a script-style font if typed, or an elegant canvas block if drawn."
+    ],
+    "booking_flow": [
+      "Clean, sequential step-by-step layout.",
+      "Use Shadcn Calendar component but stylize it with sharp corners and serif month headers."
+    ]
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react",
+      "stroke_width": 1.25,
+      "usage": "Use thin, elegant variants of icons."
+    },
+    "image_urls": {
+      "hero_fashion": {
+        "description": "Use for the main landing page hero background or prominent portfolio display.",
+        "urls": [
+          "https://images.unsplash.com/photo-1648046016726-9260b555902b",
+          "https://images.unsplash.com/photo-1660018322139-0e58555df00d",
+          "https://images.pexels.com/photos/13899406/pexels-photo-13899406.jpeg"
+        ]
+      },
+      "wedding_client": {
+        "description": "Use as placeholders for the client gallery preview, booking sections, or customer dashboard.",
+        "urls": [
+          "https://images.unsplash.com/photo-1520854221256-17451cc331bf",
+          "https://images.pexels.com/photos/35448448/pexels-photo-35448448.jpeg"
+        ]
+      },
+      "portraits_bw": {
+        "description": "Use for aesthetic fill, photographer bio picture, or generic portfolio items.",
+        "urls": [
+          "https://images.unsplash.com/photo-1541519481457-763224276691",
+          "https://images.pexels.com/photos/11607515/pexels-photo-11607515.jpeg"
+        ]
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. Initialize Tailwind with the provided color hexes in tailwind.config.js.",
+    "2. Import Google Fonts 'Cormorant Garamond' and 'Manrope' in index.css.",
+    "3. Set up Shadcn UI but aggressively remove default border-radiuses (rounded-md -> rounded-none or rounded-sm) to match the editorial sharp look.",
+    "4. Build a global Zustand store (`useGalleryStore`) to manage `isLightsOutMode`. Wrap the main layout to conditionally render Nav/Footer based on this state.",
+    "5. Ensure ALL interactive elements (buttons, inputs, gallery images) have a `data-testid` attribute using kebab-case role-based naming.",
+    "6. Use the provided image URLs exclusively for media. DO NOT use placeholder text or dummy image generators.",
+    "7. Implement role-based routing (Admin vs User) and protect the routes.",
+    "8. E-signature component can just be an input that sets a stylized cursive font internally to mimic a signature."
+  ]
+}
