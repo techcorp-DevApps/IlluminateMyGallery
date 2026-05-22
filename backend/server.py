@@ -1,89 +1,82 @@
-from fastapi import FastAPI, APIRouter
+"""FastAPI app entry: load env, register routes, seed admin + defaults."""
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
+
+load_dotenv(Path(__file__).parent / ".env")
+
+import logging
+import os
+
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
+
+from routes.admin_routes import router as admin_router
+from routes.auth_routes import router as auth_router
+from routes.bookings_routes import router as bookings_router
+from routes.documents_routes import router as documents_router
+from routes.galleries_routes import router as galleries_router
+from routes.invoices_routes import router as invoices_router
+from routes.luma_routes import router as luma_router
+from routes.payments_routes import router as payments_router
+from routes.portfolio_routes import router as portfolio_router
+from routes.services_routes import router as services_router
+from seed import run_seed
+
+app = FastAPI(title="Illuminate Studios API")
 
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+@app.get("/api/")
 async def root():
-    return {"message": "Hello World"}
+    return {"ok": True, "name": "Illuminate Studios API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+# Mount routers
+for r in (
+    auth_router,
+    portfolio_router,
+    services_router,
+    bookings_router,
+    galleries_router,
+    documents_router,
+    invoices_router,
+    payments_router,
+    admin_router,
+    luma_router,
+):
+    app.include_router(r)
 
-# Include the router in the main app
-app.include_router(api_router)
+# Stripe webhook is a top-level path inside payments_router (already /api/payments/webhook/stripe)
+# but spec wants /api/webhook/stripe — expose alias here:
+from routes.payments_routes import webhook as stripe_webhook  # noqa: E402
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_api_route("/api/webhook/stripe", stripe_webhook, methods=["POST"], include_in_schema=False)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# CORS — explicit origins so cookies work cross-site
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
+if _cors_origins_env.strip() == "*":
+    # When wildcard, browsers refuse credentials. Reflect the request origin instead.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=".*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[o.strip() for o in _cors_origins_env.split(",") if o.strip()],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("illuminate")
+
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    await run_seed()
+    logger.info("Seed complete")

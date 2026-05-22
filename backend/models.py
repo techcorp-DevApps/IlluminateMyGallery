@@ -1,0 +1,169 @@
+"""Pydantic models used across routes."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr, Field
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id() -> str:
+    return str(uuid.uuid4())
+
+
+# --- Auth ---
+class RegisterIn(BaseModel):
+    name: str
+    email: EmailStr
+    password: str = Field(min_length=6)
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: str
+    email: EmailStr
+    name: str
+    role: str
+    created_at: str
+
+
+# --- Portfolio (public galleries showcasing the photographer's work) ---
+class PortfolioItemIn(BaseModel):
+    title: str
+    category: str
+    cover_image_url: str
+    description: Optional[str] = None
+    images: List[str] = Field(default_factory=list)
+
+
+class PortfolioItemOut(PortfolioItemIn):
+    id: str
+    created_at: str
+
+
+# --- Services / Packages (admin-managed; Luma reads these) ---
+class ServiceAddonModel(BaseModel):
+    addon_id: str = Field(default_factory=new_id)
+    name: str
+    price: float
+
+
+class ServicePackageModel(BaseModel):
+    package_id: str = Field(default_factory=new_id)
+    package_name: str
+    service_category: str
+    base_price: float
+    duration_minutes: int
+    description: Optional[str] = ""
+    addon_ids: List[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+# --- Bookings ---
+class BookingCreateIn(BaseModel):
+    package_id: str
+    service_category: str
+    preferred_date: str  # ISO YYYY-MM-DD
+    preferred_time: str  # HH:MM
+    duration_minutes: int
+    location_address: str
+    suburb: str
+    notes: Optional[str] = ""
+
+
+class BookingOut(BaseModel):
+    id: str
+    user_id: str
+    client_name: str
+    client_email: str
+    client_phone: Optional[str] = ""
+    package_id: str
+    package_name: str
+    service_category: str
+    preferred_date: str
+    preferred_time: str
+    duration_minutes: int
+    location_address: str
+    suburb: str
+    notes: Optional[str] = ""
+    estimated_price: float
+    status: str  # pending | approved | rejected | completed
+    source: str  # "manual" | "luma"
+    created_at: str
+
+
+# --- Client Galleries (admin uploads delivered photos for a client) ---
+class GalleryIn(BaseModel):
+    title: str
+    client_user_id: str
+    description: Optional[str] = ""
+
+
+class PhotoMeta(BaseModel):
+    id: str
+    blob_id: str
+    filename: str
+    content_type: str
+    size: int
+
+
+class GalleryOut(BaseModel):
+    id: str
+    title: str
+    client_user_id: str
+    description: Optional[str] = ""
+    cover_blob_id: Optional[str] = None
+    photo_count: int = 0
+    created_at: str
+
+
+# --- Documents ---
+class DocumentIn(BaseModel):
+    title: str
+    client_user_id: str
+    body: str
+
+
+class DocumentOut(BaseModel):
+    id: str
+    title: str
+    client_user_id: str
+    body: str
+    signed: bool = False
+    signature_name: Optional[str] = None
+    signed_at: Optional[str] = None
+    created_at: str
+
+
+class SignIn(BaseModel):
+    signature_name: str
+
+
+# --- Invoices ---
+class InvoiceIn(BaseModel):
+    client_user_id: str
+    title: str
+    amount: float
+    currency: str = "AUD"
+    booking_id: Optional[str] = None
+
+
+class InvoiceOut(BaseModel):
+    id: str
+    client_user_id: str
+    title: str
+    amount: float
+    currency: str
+    booking_id: Optional[str] = None
+    status: str  # unpaid | paid
+    created_at: str
+    paid_at: Optional[str] = None

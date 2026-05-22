@@ -1,0 +1,70 @@
+{
+  "summary": "Backend pytest suite executed against external ingress (REACT_APP_BACKEND_URL). 14/16 pass, 1 xfail (Luma multi-turn — EMERGENT_LLM_KEY budget cap), 1 hard fail (Stripe checkout status 500). All auth/role/portfolio/services/bookings/documents/invoices/galleries/Luma-first-turn flows pass.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/payments/status/{session_id}",
+        "issue": "Returns 500 Internal Server Error immediately after a successful POST /api/payments/checkout/invoice. The Emergent Stripe proxy returns 404 ('No such checkout.session') when retrieving the session that was just minted ~250ms earlier; the route does not catch emergentintegrations.payments.stripe.checkout.CheckoutError and propagates a bare 500 to the client. Reproduced 4 times in a row with delays of 0/2/5/10s — looks like Emergent Stripe test infra returns the wrong session_id namespace or is eventually-consistent and the lookup never lands. Either way the route must wrap the call in try/except and surface a 502/404 with detail so the success-redirect page doesn't crash.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/luma/chat (multi-turn)",
+        "issue": "Second+ turns intermittently return 500 because litellm raises BadRequestError 'Budget has been exceeded! Current cost: 0.001164, Max budget: 0.001' from the Emergent LLM proxy. Root cause is the EMERGENT_LLM_KEY budget cap on this test environment ($0.001), but luma_routes.chat does not wrap chat_step in try/except — any litellm exception becomes a raw 500. Add error handling so the API returns a graceful 502 with a friendly reply (e.g. handoff-to-human) when the LLM provider is unavailable. Code logic itself is correct — first turn succeeded and called get_active_services exactly as specified.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/refresh",
+        "issue": "Stub returns HTTP 501 'Use /login'. Spec lists it as supported. Not used by current frontend tests but should either be implemented or removed from public docs."
+      },
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "Silently lowercases the submitted email but does not document this; response echoes the lowercased form. Cosmetic — adjust docs or echo verbatim."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Wrap `await stripe.get_checkout_status(session_id)` in /app/backend/routes/payments_routes.py inside try/except CheckoutError; return HTTPException(502, ...) or a graceful pending response. Also investigate why the Emergent Stripe proxy returns 404 for a session it just created — may be an infra issue worth flagging to the Emergent payments team.",
+    "Wrap `await chat_step(...)` in /app/backend/routes/luma_routes.py with try/except for litellm exceptions (BadRequestError/RateLimitError/etc.) and return a friendly fallback reply with status 200 or 503. Note: current budget cap on EMERGENT_LLM_KEY ($0.001) is so low that tool-calling barely lasts one turn — request a higher cap if available.",
+    "Implement or remove POST /api/auth/refresh (currently returns 501).",
+    "Decide if /api/auth/register should preserve original email casing or document the lowercase normalisation."
+  ],
+  "critical_code_review_comments": [
+    "auth.py cookies use samesite='none' + secure=True — correct for cross-site cookie auth on the preview ingress (HTTPS); good.",
+    "All MongoDB reads consistently project out _id — clean.",
+    "luma/agent.py: parallel_tool_calls=False is set explicitly so tools execute serially; that simplifies state. Good.",
+    "payments_routes.py status endpoint has zero error handling around the third-party SDK call — fragile (see HIGH issue above).",
+    "luma_routes.chat has zero error handling around chat_step — fragile (see HIGH issue above).",
+    "bookings_routes.change_status accepts `status` as a query param via FastAPI — works, but consider a Pydantic body for consistency.",
+    "galleries_routes /photo/{blob_id} requires auth but does not verify ownership; documented inline but worth a stricter check if photos are sensitive.",
+    "seed.py + on_startup run on every restart; the seed must be idempotent (admin update if password changed) — please confirm; current tests show admin login working post-restart.",
+    "documents/sign requires non-empty signature_name and rejects re-sign with 400 — good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/__init__.py"
+  ],
+  "success_rate": {
+    "backend": "87.5%",
+    "frontend": "not tested (skip frontend)"
+  },
+  "test_credentials": "Admin photographer@illuminatestudios.com / Illuminate2026! and client client@example.com / client123 both authenticated successfully against /api/auth/login (cookies set).",
+  "seed_data_creation": "Tests created (and intentionally did not clean up to allow chain reuse): a TEST_user_<uuid>@example.com registered user (logged out at test end), a TEST_Portfolio item, a TEST_booking for the client, a TEST_Contract document (signed), a TEST_Invoice ($50 AUD unpaid), a TEST_Gallery with one 1x1 PNG photo, and one Luma session. Prefix 'TEST_' was used consistently for easy admin cleanup.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/backend_test.py. The Luma multi-turn test is marked xfail because the EMERGENT_LLM_KEY in this env has a $0.001 budget cap — first turn passes and proves the contract (session_id returned, get_active_services tool called). The payments status 500 is reproducible: Emergent Stripe proxy returns 404 on the freshly minted session_id; the fix should at minimum be defensive error handling in payments_routes.status. After main agent fixes those two routes, re-run the full file; expect 16/16 once LLM budget allows the full booking confirmation turn.",
+  "rca_of_the_issue": {
+    "stripe_status_500": "Reproduction: 1) login as client@example.com; 2) POST /api/payments/checkout/invoice with a valid invoice_id and any https origin_url -> 200 with session_id (Emergent Stripe POST returns 200); 3) immediately GET /api/payments/status/{session_id} -> 500. Backend logs: stripe error_code=resource_missing 'No such checkout.session: cs_test_...' followed by emergentintegrations.payments.stripe.checkout.CheckoutError uncaught. Mitigation: wrap stripe.get_checkout_status in try/except and report 502 + detail; longer-term escalate to Emergent Stripe team.",
+    "luma_multi_turn_500": "Reproduction: send any second message reusing the session_id from a working first turn -> 500. Backend logs: 'Budget has been exceeded! Current cost: 0.001164, Max budget: 0.001' from the litellm/openai proxy. Root cause: tiny budget on EMERGENT_LLM_KEY in this environment + no exception handling in luma_routes.chat. Mitigation: try/except around chat_step returning graceful fallback + request larger budget."
+  }
+}
