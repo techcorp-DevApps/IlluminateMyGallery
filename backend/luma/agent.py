@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import litellm
-from emergentintegrations.llm.utils import get_integration_proxy_url
 
 from db import db
 from email_service import email_booking_received_to_admin, email_luma_handoff_to_admin
@@ -197,9 +196,14 @@ async def tool_handoff_to_human(args: Dict[str, Any], state: BookingState) -> Di
 # ----- LLM call -----
 
 def _llm_params(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Pick the credentials provider in this order:
-    1. OPENAI_API_KEY — direct OpenAI (preferred when set; full budget control).
-    2. EMERGENT_LLM_KEY — proxied via the Emergent LLM gateway.
+    """Pick credentials provider in this order — both paths are vendor-neutral
+    `litellm` calls; only the api_base differs.
+
+      1. OPENAI_API_KEY  — direct OpenAI (preferred; full budget control).
+      2. EMERGENT_LLM_KEY — proxied via the Emergent LLM gateway (optional dev fallback).
+
+    To drop the Emergent fallback entirely: remove the `elif emergent_key` branch
+    below and delete `EMERGENT_LLM_KEY` / `INTEGRATION_PROXY_URL` from .env.
     """
     model = os.environ.get("LUMA_MODEL", DEFAULT_MODEL)
     base: Dict[str, Any] = {
@@ -214,11 +218,19 @@ def _llm_params(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     if openai_key:
         base["api_key"] = openai_key
         return base
-    emergent_key = os.environ["EMERGENT_LLM_KEY"]
-    base["api_key"] = emergent_key
-    base["api_base"] = get_integration_proxy_url() + "/llm"
-    base["custom_llm_provider"] = "openai"
-    return base
+    # ---- Emergent LLM fallback (optional, dev convenience) ----
+    emergent_key = os.environ.get("EMERGENT_LLM_KEY")
+    if emergent_key:
+        proxy_url = os.environ.get(
+            "INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com"
+        )
+        base["api_key"] = emergent_key
+        base["api_base"] = proxy_url + "/llm"
+        base["custom_llm_provider"] = "openai"
+        return base
+    raise RuntimeError(
+        "No LLM credentials configured. Set OPENAI_API_KEY in .env."
+    )
 
 
 async def _llm_call(messages: List[Dict[str, Any]]):
