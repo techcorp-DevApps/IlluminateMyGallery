@@ -85,7 +85,7 @@ export default function LumaChat() {
 
             {open && (
                 <div
-                    className="fixed bottom-24 right-6 z-[80] w-[92vw] sm:w-[420px] h-[560px] bg-background border border-border flex flex-col animate-fade-in"
+                    className="fixed bottom-24 left-6 z-[80] w-[92vw] sm:w-[420px] h-[560px] bg-background border border-border flex flex-col animate-fade-in"
                     data-testid="luma-window"
                 >
                     <div className="border-b border-border px-5 py-4">

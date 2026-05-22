@@ -81,7 +81,20 @@ async def status(session_id: str, request: Request, user: dict = Depends(get_cur
         raise HTTPException(status_code=403, detail="Forbidden")
 
     stripe = _stripe(request)
-    res: CheckoutStatusResponse = await stripe.get_checkout_status(session_id)
+    try:
+        res: CheckoutStatusResponse = await stripe.get_checkout_status(session_id)
+    except Exception as exc:
+        # Stripe lookup failure (eventual-consistency race, network, etc.) — return the cached
+        # transaction state instead of crashing the success page.
+        return {
+            "session_id": session_id,
+            "status": tx.get("status", "open"),
+            "payment_status": tx.get("payment_status", "initiated"),
+            "amount_total": int(round(float(tx.get("amount", 0)) * 100)),
+            "currency": tx.get("currency", "aud"),
+            "warning": "Could not verify payment with provider yet — check back in a moment.",
+            "provider_error": str(exc)[:200],
+        }
 
     # Update tx; only mark invoice paid once.
     updates = {"payment_status": res.payment_status, "status": res.status}
