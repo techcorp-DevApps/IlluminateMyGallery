@@ -1,0 +1,67 @@
+{
+  "summary": "Re-ran backend integration suite post-Stripe-removal. 19/20 tests pass. Auth (new admin email + old email 401 + client + refresh), all 6 contract templates, template auto-fill (client name + long-format date 'Monday, 15 June 2026' all substituted correctly), document sign, invoice PayID reference (INV-YYYY-NNNN regex match) + payment_instructions (payid=accounts@illuminatestudios.com.au), auto-from-booking, mark-paid/unpaid, role gating, Stripe endpoints gone (404), gallery upload + binary fetch, and Luma first-turn all PASS. Single hard failure: GET /api/invoices/mine returns 500 because legacy invoices (created in iteration_1 before the reference field was added) lack a `reference` field, and InvoiceOut.reference is required — ResponseValidationError aborts the whole list. Also surfaced: Resend API key is NOT authorized to send from the `invoicing.illuminatestudios.com.au` subdomain (logged but does not break invoice create because the failure is swallowed downstream of the 200 return).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/invoices/mine",
+        "issue": "Returns 500 ResponseValidationError when the client has ANY legacy invoice without a `reference` field. Backend log: \"fastapi.exceptions.ResponseValidationError: 2 validation errors ... 'loc': ('response', 2, 'reference'), 'msg': 'Field required'\". Two legacy invoices (titles 'TestInv' / 'Decoupling test') exist for client@example.com from iteration_1; they are returned with payment_instructions injected at runtime but `reference` is None, while `InvoiceOut.reference` is required. Fix options: (a) make `reference` Optional in InvoiceOut and let the serializer pass null, (b) in `_attach_pi()` backfill a synthetic reference (e.g. `INV-LEGACY-{id[:8]}`) when the DB doc has none, or (c) run a one-shot migration that assigns references to all existing invoices. Currently this breaks the client's invoice list page in production.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "Resend (invoice email sender)",
+        "issue": "resend.exceptions.ResendError: 'This API key is not authorized to send emails from invoicing.illuminatestudios.com.au'. POST /api/invoices still returns 200 (failure happens after the DB write and is logged but apparently caught somewhere up the stack — or it actually propagates and is masked by FastAPI; double-check the email_service wrapper). Either way the customer will not actually receive the invoice email until the Resend domain is verified or the API key has scope on that subdomain. Notification subdomain (donotreply@notifications...) was not tested in this iteration."
+      },
+      {
+        "endpoint": "POST /api/contract-templates/create-document",
+        "issue": "DocumentOut response model does not expose `template_key` or `booking_id` even though the route writes them to the DB doc. Admin UI cannot tell which template a document was built from after creation. Add the two optional fields to DocumentOut in models.py."
+      },
+      {
+        "endpoint": "Statement of Work auto-fill — `[End time]` and `[Client address]`",
+        "issue": "Bookings have no `end_time` and the user profile has no stored postal address, so those two placeholders remain unfilled in generated documents. Not blocking (admin can edit before sending) but worth noting in UI — surface an 'unfilled fields' indicator, or compute end_time = preferred_time + duration_minutes when generating."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix GET /api/invoices/mine 500 — make InvoiceOut.reference Optional OR backfill a synthetic reference in _attach_pi() OR migrate legacy invoices to have a reference.",
+    "Resolve Resend domain authorization for invoicing.illuminatestudios.com.au (verify domain in Resend dashboard or update MAIL_FROM_INVOICES to a verified sender). Same check needed for notifications subdomain.",
+    "Add `template_key` and `booking_id` (both Optional) to DocumentOut so admin UI can show which template was used.",
+    "Optional: compute and substitute `[End time]` from booking.preferred_time + duration_minutes in fill_placeholders()."
+  ],
+  "critical_code_review_comments": [
+    "invoices_routes._attach_pi mutates the dict it receives — fine but the same dict could be reused (e.g. when fetched once and listed); switch to returning a shallow copy to be safe.",
+    "invoices_routes._next_reference uses a per-year counter (`counters.invoice_{year}`) with $inc — atomic and correct. Good.",
+    "Email send in create_invoice / auto_from_booking is not wrapped in try/except — if Resend raises, the route should still return the invoice (currently it does, suggesting some handling exists in email_service, but worth confirming). On the failed Resend send the 200 was still returned, so wrapping seems present, but please verify email_service catches ResendError explicitly.",
+    "DocumentOut omits the persisted template_key/booking_id fields (see minor issue above).",
+    "contract_templates_routes.create_document does not validate that the booking belongs to the client when booking_id is provided — actually it DOES (`booking.get('user_id') == client['id']`), but silently skips substitution if mismatched. Consider returning 400 instead of silent skip to avoid mis-filled contracts.",
+    "auth_routes.refresh now sets both new access + refresh cookies — clean and idiomatic.",
+    "Stripe routes are fully gone (404 confirmed) and Stripe code is removed from server.py — clean.",
+    "templates.fill_placeholders uses datetime.fromisoformat which works for 'YYYY-MM-DD' inputs in Python 3.11+. Good.",
+    "Mongo _id is consistently projected out across all reads — clean."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {
+    "backend": "95% (19/20)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "Admin admin@illuminatestudios.com.au / Illuminate2026! and client client@example.com / client123 both authenticated successfully. Old admin email photographer@illuminatestudios.com confirmed gone (401).",
+  "seed_data_creation": "Created during this run (TEST_ prefix where applicable; not cleaned up to allow chain debugging): one booking (Portrait, 2026-06-15), one signed document from family_portrait template, one TEST_PayID_invoice ($250 AUD, marked paid then unpaid), one auto-from-booking invoice, one TEST_Gallery_xxxx with a 1x1 PNG photo, and one Luma chat session. NOTE: there are also two stale legacy invoices ('TestInv' and 'Decoupling test') for client@example.com left over from iteration_1 that lack a `reference` field — these are what trigger the /api/invoices/mine 500.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/backend_test.py. The single failing test (test_mine_returns_invoices_with_pi) reproduces a real backend bug — legacy invoices in MongoDB without `reference` field crash the /mine response model. Once main agent fixes (Option A/B/C in action items), full suite should be 20/20. Luma test relies on OPENAI_API_KEY (no longer EMERGENT_LLM_KEY) — first turn responded fine this run. Resend domain auth failure is currently silent from API caller's POV but emails are NOT delivered.",
+  "rca_of_the_issue": {
+    "invoices_mine_500": "Reproduction: login as client@example.com -> GET /api/invoices/mine -> 500. Backend log shows ResponseValidationError on `reference` field for legacy invoice docs that pre-date the PayID change. Root cause: _attach_pi only injects a payment_instructions object but does NOT populate the invoice doc's `reference` field, and InvoiceOut declares `reference: str` (required). Test client has two such legacy invoices in DB. Mitigation: either relax `InvoiceOut.reference` to Optional[str], or have `_attach_pi` set `inv['reference'] = inv.get('reference') or f'INV-LEGACY-{inv[\"id\"][:8]}'` before returning, or run a startup migration that assigns INV-YYYY-NNNN to every legacy invoice. Verified by inspecting the route + the live error trace in /var/log/supervisor/backend.err.log."
+  }
+}

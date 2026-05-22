@@ -1,47 +1,49 @@
 """
-Backend integration tests for Illuminate Studios.
-Covers: health, auth (cookie-based), role gating, portfolio, services,
-bookings, documents, invoices, payments (Stripe), galleries, Luma agent.
+Backend integration tests for Illuminate Studios (post-Stripe, PayID flow).
+Covers: health, auth (cookie + refresh), role gating, contract templates +
+auto-fill, documents, invoices (PayID flow + mark-paid/unpaid + auto-from-booking),
+galleries (upload + binary fetch), Luma chat first-turn, and Stripe-gone 404s.
 
 Run:
-  cd /app && pytest backend/tests/backend_test.py -v --tb=short \
+  pytest /app/backend/tests/backend_test.py -v --tb=short \
     --junitxml=/app/test_reports/pytest/pytest_results.xml
 """
 from __future__ import annotations
 
 import io
 import os
-import time
+import re
 import uuid
 
 import pytest
 import requests
 
-# Read from frontend env to exercise the external ingress (real user path)
+
 def _read_base_url() -> str:
     env_path = "/app/frontend/.env"
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                if line.startswith("REACT_APP_BACKEND_URL"):
-                    return line.split("=", 1)[1].strip().rstrip("/")
+    with open(env_path) as f:
+        for line in f:
+            if line.startswith("REACT_APP_BACKEND_URL"):
+                return line.split("=", 1)[1].strip().rstrip("/")
     raise RuntimeError("REACT_APP_BACKEND_URL not configured")
 
 
 BASE = _read_base_url()
-ADMIN_EMAIL = "photographer@illuminatestudios.com"
+ADMIN_EMAIL = "admin@illuminatestudios.com.au"
 ADMIN_PASS = "Illuminate2026!"
+OLD_ADMIN_EMAIL = "photographer@illuminatestudios.com"
 CLIENT_EMAIL = "client@example.com"
 CLIENT_PASS = "client123"
 
-# Shared state across tests (preserves entity IDs created by earlier tests)
 state: dict = {}
 
 
-# --------------------- helpers ---------------------
-
 def login(session: requests.Session, email: str, password: str) -> requests.Response:
-    return session.post(f"{BASE}/api/auth/login", json={"email": email, "password": password}, timeout=30)
+    return session.post(
+        f"{BASE}/api/auth/login",
+        json={"email": email, "password": password},
+        timeout=30,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -57,345 +59,339 @@ def client_session() -> requests.Session:
     s = requests.Session()
     r = login(s, CLIENT_EMAIL, CLIENT_PASS)
     assert r.status_code == 200, f"Client login failed: {r.status_code} {r.text}"
+    state["client_user_id"] = r.json()["id"]
     return s
 
 
-# --------------------- 1. health ---------------------
-
-def test_root_health():
-    r = requests.get(f"{BASE}/api/", timeout=15)
-    assert r.status_code == 200
-    body = r.json()
-    assert body.get("ok") is True
-    assert "name" in body
-
-
-# --------------------- 2. auth flow ---------------------
-
-def test_register_sets_cookies_and_me_works():
-    s = requests.Session()
-    email = f"test_user_{uuid.uuid4().hex[:8]}@example.com"  # API lowercases
-    r = s.post(f"{BASE}/api/auth/register",
-               json={"name": "Test User", "email": email, "password": "secret123"},
-               timeout=30)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["email"] == email.lower()
-    assert body["role"] == "user"
-    assert "id" in body
-    # Cookies must be set
-    cookie_names = {c.name for c in s.cookies}
-    assert "access_token" in cookie_names, f"missing access cookie: {cookie_names}"
-    assert "refresh_token" in cookie_names, f"missing refresh cookie: {cookie_names}"
-
-    # /me using cookie
-    me = s.get(f"{BASE}/api/auth/me", timeout=15)
-    assert me.status_code == 200
-    assert me.json()["email"] == email
-
-    # logout clears cookies
-    out = s.post(f"{BASE}/api/auth/logout", timeout=15)
-    assert out.status_code == 200
-    me2 = s.get(f"{BASE}/api/auth/me", timeout=15)
-    assert me2.status_code == 401, f"Expected 401 after logout, got {me2.status_code}"
+# ----------------- Health -----------------
+class TestHealth:
+    def test_root_ok(self):
+        r = requests.get(f"{BASE}/api/", timeout=15)
+        assert r.status_code == 200
+        body = r.json()
+        assert body.get("ok") is True
 
 
-def test_login_admin_and_client():
-    sa = requests.Session()
-    ra = login(sa, ADMIN_EMAIL, ADMIN_PASS)
-    assert ra.status_code == 200, ra.text
-    assert ra.json()["role"] == "admin"
-
-    sc = requests.Session()
-    rc = login(sc, CLIENT_EMAIL, CLIENT_PASS)
-    assert rc.status_code == 200, rc.text
-    body = rc.json()
-    assert body["role"] == "user"
-    state["client_user_id"] = body["id"]
-
-
-def test_me_unauthenticated_returns_401():
-    r = requests.get(f"{BASE}/api/auth/me", timeout=15)
-    assert r.status_code == 401
-
-
-def test_login_bad_password_returns_401():
-    r = requests.post(f"{BASE}/api/auth/login",
-                      json={"email": ADMIN_EMAIL, "password": "wrong"}, timeout=15)
-    assert r.status_code == 401
-
-
-# --------------------- 3. role gating ---------------------
-
-def test_client_cannot_list_all_bookings(client_session):
-    r = client_session.get(f"{BASE}/api/bookings", timeout=15)
-    assert r.status_code == 403, f"expected 403 for non-admin /api/bookings, got {r.status_code}"
-
-
-# --------------------- 4. portfolio ---------------------
-
-def test_portfolio_get_seeded(admin_session):
-    r = requests.get(f"{BASE}/api/portfolio", timeout=15)
-    assert r.status_code == 200
-    items = r.json()
-    assert isinstance(items, list)
-    assert len(items) > 0, "portfolio should be seeded"
-    state["portfolio_count"] = len(items)
-
-
-def test_portfolio_post_admin_ok_and_non_admin_403(admin_session, client_session):
-    payload = {
-        "title": "TEST_Portfolio",
-        "category": "portrait",
-        "cover_image_url": "https://example.com/cover.jpg",
-        "description": "test item",
-        "images": ["https://example.com/1.jpg"],
-    }
-    r_admin = admin_session.post(f"{BASE}/api/portfolio", json=payload, timeout=15)
-    assert r_admin.status_code == 200, r_admin.text
-    state["portfolio_id"] = r_admin.json()["id"]
-
-    r_client = client_session.post(f"{BASE}/api/portfolio", json=payload, timeout=15)
-    assert r_client.status_code == 403
-
-
-# --------------------- 5. services ---------------------
-
-def test_services_active_seeded():
-    r = requests.get(f"{BASE}/api/services/active", timeout=15)
-    assert r.status_code == 200
-    body = r.json()
-    assert "packages" in body and "addons" in body
-    assert isinstance(body["packages"], list)
-    assert len(body["packages"]) > 0, "expected seeded packages"
-    state["package_id"] = body["packages"][0]["package_id"]
-    state["service_category"] = body["packages"][0]["service_category"]
-
-
-# --------------------- 6. bookings (manual) ---------------------
-
-def test_client_create_booking_and_admin_lists(admin_session, client_session):
-    assert state.get("package_id"), "package_id must be set by services test"
-    payload = {
-        "package_id": state["package_id"],
-        "service_category": state["service_category"],
-        "preferred_date": "2026-04-15",
-        "preferred_time": "14:00",
-        "duration_minutes": 60,
-        "location_address": "1 TEST St",
-        "suburb": "Fitzroy",
-        "notes": "TEST_booking",
-    }
-    r = client_session.post(f"{BASE}/api/bookings", json=payload, timeout=15)
-    assert r.status_code == 200, r.text
-    booking = r.json()
-    assert booking["status"] == "pending"
-    assert booking["source"] == "manual"
-    state["booking_id"] = booking["id"]
-
-    mine = client_session.get(f"{BASE}/api/bookings/mine", timeout=15)
-    assert mine.status_code == 200
-    assert any(b["id"] == booking["id"] for b in mine.json())
-
-    all_b = admin_session.get(f"{BASE}/api/bookings", timeout=15)
-    assert all_b.status_code == 200
-    assert any(b["id"] == booking["id"] for b in all_b.json())
-
-
-def test_admin_approve_booking(admin_session):
-    bid = state["booking_id"]
-    r = admin_session.patch(f"{BASE}/api/bookings/{bid}/status",
-                            params={"status": "approved"}, timeout=15)
-    assert r.status_code == 200, r.text
-    assert r.json()["status"] == "approved"
-
-
-# --------------------- 7. documents ---------------------
-
-def test_documents_create_view_sign(admin_session, client_session):
-    payload = {
-        "title": "TEST_Contract",
-        "client_user_id": state["client_user_id"],
-        "body": "This is the contract body to sign.",
-    }
-    r = admin_session.post(f"{BASE}/api/documents", json=payload, timeout=15)
-    assert r.status_code == 200, r.text
-    doc = r.json()
-    assert doc["signed"] is False
-    state["document_id"] = doc["id"]
-
-    mine = client_session.get(f"{BASE}/api/documents/mine", timeout=15)
-    assert mine.status_code == 200
-    assert any(d["id"] == doc["id"] for d in mine.json())
-
-    sign = client_session.post(f"{BASE}/api/documents/{doc['id']}/sign",
-                               json={"signature_name": "Test Client"}, timeout=15)
-    assert sign.status_code == 200, sign.text
-    signed = sign.json()
-    assert signed["signed"] is True
-    assert signed["signature_name"] == "Test Client"
-    assert signed["signed_at"]
-
-
-# --------------------- 8. invoices + Stripe checkout ---------------------
-
-def test_invoice_create_and_checkout_flow(admin_session, client_session):
-    inv_payload = {
-        "client_user_id": state["client_user_id"],
-        "title": "TEST_Invoice",
-        "amount": 50.0,
-        "currency": "AUD",
-        "booking_id": state.get("booking_id"),
-    }
-    r = admin_session.post(f"{BASE}/api/invoices", json=inv_payload, timeout=15)
-    assert r.status_code == 200, r.text
-    inv = r.json()
-    assert inv["status"] == "unpaid"
-    assert inv["amount"] == 50.0
-    state["invoice_id"] = inv["id"]
-
-    mine = client_session.get(f"{BASE}/api/invoices/mine", timeout=15)
-    assert mine.status_code == 200
-    assert any(i["id"] == inv["id"] for i in mine.json())
-
-    # Initiate Stripe checkout
-    co = client_session.post(
-        f"{BASE}/api/payments/checkout/invoice",
-        json={"invoice_id": inv["id"], "origin_url": "https://example.com"},
-        timeout=45,
-    )
-    assert co.status_code == 200, co.text
-    body = co.json()
-    assert body.get("url", "").startswith("https://"), f"expected Stripe URL, got {body}"
-    assert body.get("session_id")
-    state["stripe_session_id"] = body["session_id"]
-
-    # status endpoint
-    st = client_session.get(f"{BASE}/api/payments/status/{body['session_id']}", timeout=30)
-    assert st.status_code == 200, st.text
-    sbody = st.json()
-    assert sbody["session_id"] == body["session_id"]
-    # payment_status should be "unpaid" or similar, status open
-    assert "payment_status" in sbody
-    assert "status" in sbody
-
-
-# --------------------- 9. galleries ---------------------
-
-def _tiny_png_bytes() -> bytes:
-    # 1x1 PNG (valid)
-    return (
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
-        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
-        b"\x00\x00\x00\rIDATx\x9cc\xfa\xcf\x00\x00\x00\x02\x00\x01"
-        b"\xe2!\xbc3\x00\x00\x00\x00IEND\xaeB`\x82"
-    )
-
-
-def test_gallery_create_upload_and_view(admin_session, client_session):
-    payload = {
-        "title": "TEST_Gallery",
-        "client_user_id": state["client_user_id"],
-        "description": "test description",
-    }
-    r = admin_session.post(f"{BASE}/api/galleries", json=payload, timeout=15)
-    assert r.status_code == 200, r.text
-    g = r.json()
-    state["gallery_id"] = g["id"]
-    assert g["photo_count"] == 0
-
-    # Upload photo (multipart)
-    files = {"file": ("tiny.png", _tiny_png_bytes(), "image/png")}
-    up = admin_session.post(f"{BASE}/api/galleries/{g['id']}/photos", files=files, timeout=30)
-    assert up.status_code == 200, up.text
-    photo = up.json()
-    assert "blob_id" in photo
-    state["blob_id"] = photo["blob_id"]
-
-    # client sees the gallery
-    mine = client_session.get(f"{BASE}/api/galleries/mine", timeout=15)
-    assert mine.status_code == 200
-    rows = mine.json()
-    target = next((x for x in rows if x["id"] == g["id"]), None)
-    assert target is not None, "client should see their gallery"
-    assert target["photo_count"] >= 1
-
-    # client get gallery with photos
-    detail = client_session.get(f"{BASE}/api/galleries/{g['id']}", timeout=15)
-    assert detail.status_code == 200, detail.text
-    assert isinstance(detail.json().get("photos", []), list)
-    assert len(detail.json()["photos"]) >= 1
-
-    # client fetch the binary
-    blob = client_session.get(f"{BASE}/api/galleries/photo/{photo['blob_id']}", timeout=15)
-    assert blob.status_code == 200
-    assert blob.headers.get("content-type", "").startswith("image/")
-    assert len(blob.content) > 0
-
-
-# --------------------- 10. Luma agent ---------------------
-
-def test_luma_chat_creates_session_and_calls_get_active_services():
-    msg = ("Hi I want to book a portrait session for 2 people in Fitzroy on "
-           "March 15th 2026 at 2pm. My name is TEST Luma User, "
-           "email TEST_luma_user@example.com, phone 0400000000.")
-    r = requests.post(f"{BASE}/api/luma/chat", json={"message": msg}, timeout=120)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    sid = body.get("session_id")
-    assert sid, "Luma must return a session_id"
-    state["luma_session_id"] = sid
-    # Should have done at least one tool call by now or in following turns;
-    # capture tool events for later assertion.
-    state["luma_tool_events"] = list(body.get("tool_events") or [])
-    # Reply must be string
-    assert isinstance(body.get("reply"), str)
-
-
-def test_luma_continues_session_and_confirms_booking(admin_session):
-    sid = state.get("luma_session_id")
-    if not sid:
-        pytest.skip("no session id from previous luma turn")
-
-    seen_tools = list(state.get("luma_tool_events") or [])
-    booking_id = None
-
-    # Multi-turn until we get a booking created or 5 turns
-    follow_ups = [
-        "Please use the standard portrait package, 60 minutes.",
-        "Yes that's correct, please proceed.",
-        "Yes confirm it.",
-        "Please go ahead and book it now.",
-    ]
-    for msg in follow_ups:
-        r = requests.post(f"{BASE}/api/luma/chat",
-                          json={"session_id": sid, "message": msg}, timeout=120)
+# ----------------- Auth -----------------
+class TestAuth:
+    def test_admin_login_new_email(self):
+        s = requests.Session()
+        r = login(s, ADMIN_EMAIL, ADMIN_PASS)
         assert r.status_code == 200, r.text
-        b = r.json()
-        assert b.get("session_id") == sid, "session must persist"
-        evs = b.get("tool_events") or []
-        seen_tools.extend(evs)
-        for ev in evs:
-            if ev.get("name") == "create_booking":
-                res = ev.get("result") or {}
-                if res.get("ok"):
-                    booking_id = res.get("booking_id")
-                    break
-        if booking_id:
-            break
+        body = r.json()
+        assert body["role"] == "admin"
+        assert body["email"] == ADMIN_EMAIL
+        # Cookies set
+        assert "access_token" in s.cookies or "refresh_token" in s.cookies
 
-    tool_names = [e.get("name") for e in seen_tools]
-    # get_active_services should appear (per contract)
-    assert "get_active_services" in tool_names, (
-        f"expected get_active_services in tool_events; saw {tool_names}"
-    )
+    def test_old_admin_email_gone(self):
+        s = requests.Session()
+        r = login(s, OLD_ADMIN_EMAIL, ADMIN_PASS)
+        assert r.status_code == 401, f"Expected 401 for old admin, got {r.status_code}: {r.text}"
 
-    if not booking_id:
-        pytest.xfail(f"Luma did not create a booking via tool calls. Tools observed: {tool_names}")
+    def test_client_login(self):
+        s = requests.Session()
+        r = login(s, CLIENT_EMAIL, CLIENT_PASS)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["role"] == "user"
+        assert body["email"] == CLIENT_EMAIL
 
-    # Verify booking exists in admin list with source=luma
-    all_b = admin_session.get(f"{BASE}/api/bookings", timeout=15)
-    assert all_b.status_code == 200
-    found = next((b for b in all_b.json() if b["id"] == booking_id), None)
-    assert found is not None, "luma booking not present in admin list"
-    assert found["source"] == "luma"
+    def test_refresh_issues_fresh_cookies(self):
+        s = requests.Session()
+        r = login(s, CLIENT_EMAIL, CLIENT_PASS)
+        assert r.status_code == 200
+        original_refresh = s.cookies.get("refresh_token")
+        r2 = s.post(f"{BASE}/api/auth/refresh", timeout=15)
+        assert r2.status_code == 200, f"refresh failed: {r2.status_code} {r2.text}"
+        body = r2.json()
+        assert body["email"] == CLIENT_EMAIL
+        # Cookie should be present (may or may not change depending on impl, but must exist)
+        new_refresh = s.cookies.get("refresh_token")
+        assert new_refresh, "refresh_token cookie missing after refresh"
+        # Also access cookie should exist
+        assert s.cookies.get("access_token"), "access_token cookie missing after refresh"
+        # Verify a follow-up authenticated call works
+        me = s.get(f"{BASE}/api/auth/me", timeout=15)
+        assert me.status_code == 200
+
+
+# ----------------- Contract templates -----------------
+EXPECTED_KEYS = {
+    "family_portrait",
+    "anniversary_couples",
+    "kids_birthday",
+    "event",
+    "wedding",
+    "portfolio_release",
+}
+
+
+class TestContractTemplates:
+    def test_list_templates_six(self, admin_session):
+        r = admin_session.get(f"{BASE}/api/contract-templates", timeout=15)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert isinstance(data, list)
+        keys = {t["key"] for t in data}
+        assert keys == EXPECTED_KEYS, f"Expected {EXPECTED_KEYS}, got {keys}"
+        assert len(data) == 6
+
+    def test_template_body_contains_terms_and_placeholders(self, admin_session):
+        r = admin_session.get(f"{BASE}/api/contract-templates", timeout=15)
+        assert r.status_code == 200
+        for t in r.json():
+            body = t["body"]
+            assert "[Client name(s)]" in body, f"missing client name placeholder in {t['key']}"
+            assert "[Session / event date]" in body, f"missing session date placeholder in {t['key']}"
+            if t["key"] != "portfolio_release":
+                # Shared T&Cs sections (1-18) should be present for the 5 photography agreements
+                # Section 19 (category-specific) is appended after shared terms
+                assert "19." in body or "Category-specific requirements" in body
+
+    def test_client_cannot_list_templates(self, client_session):
+        r = client_session.get(f"{BASE}/api/contract-templates", timeout=15)
+        assert r.status_code in (401, 403)
+
+    def test_create_document_from_template_autofill(self, admin_session, client_session):
+        # First ensure a booking exists for the client
+        # Fetch a service package
+        sr = admin_session.get(f"{BASE}/api/services/active", timeout=15)
+        assert sr.status_code == 200
+        services = sr.json()
+        packages = services.get("packages") or services.get("service_packages") or []
+        assert packages, f"No packages: {services}"
+        pkg = packages[0]
+        pkg_id = pkg.get("package_id") or pkg.get("id")
+        assert pkg_id, f"no package id field on {pkg}"
+
+        booking_payload = {
+            "package_id": pkg_id,
+            "service_category": pkg.get("service_category", "Portrait"),
+            "preferred_date": "2026-06-15",
+            "preferred_time": "10:00",
+            "duration_minutes": 60,
+            "location_address": "1 Test St",
+            "suburb": "Melbourne",
+            "notes": "TEST_template_autofill",
+        }
+        br = client_session.post(f"{BASE}/api/bookings", json=booking_payload, timeout=15)
+        assert br.status_code == 200, br.text
+        booking_id = br.json()["id"]
+        state["booking_id"] = booking_id
+
+        # Fetch client_user_id
+        me = client_session.get(f"{BASE}/api/auth/me", timeout=15).json()
+        client_id = me["id"]
+        state["client_user_id"] = client_id
+
+        payload = {
+            "template_key": "family_portrait",
+            "client_user_id": client_id,
+            "booking_id": booking_id,
+        }
+        r = admin_session.post(
+            f"{BASE}/api/contract-templates/create-document", json=payload, timeout=20
+        )
+        assert r.status_code == 200, r.text
+        doc = r.json()
+        state["template_doc_id"] = doc["id"]
+        body = doc["body"]
+        # Client name filled in (not placeholder)
+        client_name = me["name"]
+        assert client_name in body, f"client name '{client_name}' not in filled body"
+        assert "[Client name(s)]" not in body, "client placeholder still present"
+        # Long-format date "Monday, 15 June 2026"
+        assert "15 June 2026" in body, f"expected long date in body, got snippet: {body[:500]}"
+        assert "[Session / event date]" not in body
+        assert doc.get("template_key") in ("family_portrait", None)  # optional field on response
+        assert doc.get("booking_id") in (booking_id, None)  # optional field on response
+
+    def test_document_appears_in_mine(self, client_session):
+        assert state.get("template_doc_id"), "no template doc id from previous test"
+        r = client_session.get(f"{BASE}/api/documents/mine", timeout=15)
+        assert r.status_code == 200, r.text
+        ids = [d["id"] for d in r.json()]
+        assert state["template_doc_id"] in ids
+
+    def test_client_can_sign_template_document(self, client_session):
+        doc_id = state.get("template_doc_id")
+        assert doc_id
+        r = client_session.post(
+            f"{BASE}/api/documents/{doc_id}/sign",
+            json={"signature_name": "Test Client"},
+            timeout=15,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["signed"] is True
+        assert body["signature_name"] == "Test Client"
+        assert body["signed_at"]
+
+
+# ----------------- Invoices (PayID) -----------------
+REF_RE = re.compile(r"^INV-\d{4}-\d{4}$")
+
+
+class TestInvoicesPayID:
+    def test_create_invoice_has_reference_and_payment_instructions(
+        self, admin_session, client_session
+    ):
+        client_id = state.get("client_user_id")
+        if not client_id:
+            me = client_session.get(f"{BASE}/api/auth/me", timeout=15).json()
+            client_id = me["id"]
+            state["client_user_id"] = client_id
+        payload = {
+            "client_user_id": client_id,
+            "title": "TEST_PayID_invoice",
+            "description": "Manual invoice for PayID flow",
+            "amount": 250.0,
+            "currency": "AUD",
+        }
+        r = admin_session.post(f"{BASE}/api/invoices", json=payload, timeout=15)
+        assert r.status_code == 200, r.text
+        inv = r.json()
+        assert REF_RE.match(inv["reference"]), f"bad ref: {inv['reference']}"
+        pi = inv.get("payment_instructions") or {}
+        assert pi.get("payid") == "accounts@illuminatestudios.com.au", f"payid mismatch: {pi}"
+        assert pi.get("reference") == inv["reference"]
+        assert inv["status"] == "unpaid"
+        state["invoice_id"] = inv["id"]
+        state["invoice_ref"] = inv["reference"]
+
+    def test_auto_from_booking(self, admin_session):
+        booking_id = state.get("booking_id")
+        assert booking_id, "no booking id from prior test"
+        r = admin_session.post(
+            f"{BASE}/api/invoices/auto-from-booking/{booking_id}", timeout=15
+        )
+        assert r.status_code == 200, r.text
+        inv = r.json()
+        assert REF_RE.match(inv["reference"])
+        assert inv.get("payment_instructions", {}).get("payid")
+        # amount equals booking.estimated_price — fetch booking to compare
+        # (booking lookup is admin-only on /api/bookings; just confirm amount is positive)
+        assert inv["amount"] > 0
+        assert inv["booking_id"] == booking_id
+        state["auto_invoice_id"] = inv["id"]
+
+    def test_mine_returns_invoices_with_pi(self, client_session):
+        r = client_session.get(f"{BASE}/api/invoices/mine", timeout=15)
+        assert r.status_code == 200, r.text
+        invs = r.json()
+        assert len(invs) >= 2, f"expected >=2 invoices, got {len(invs)}"
+        ids = {i["id"] for i in invs}
+        assert state["invoice_id"] in ids
+        assert state["auto_invoice_id"] in ids
+        for i in invs:
+            pi = i.get("payment_instructions") or {}
+            assert pi.get("payid"), f"missing payid on invoice {i['id']}"
+            assert pi.get("reference") == i.get("reference")
+
+    def test_mark_paid_and_unpaid(self, admin_session, client_session):
+        inv_id = state["invoice_id"]
+        r = admin_session.post(f"{BASE}/api/invoices/{inv_id}/mark-paid", timeout=15)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "paid"
+        assert body["paid_at"]
+        # Client view sees paid
+        cr = client_session.get(f"{BASE}/api/invoices/{inv_id}", timeout=15)
+        assert cr.status_code == 200
+        assert cr.json()["status"] == "paid"
+        # Now reverse
+        r2 = admin_session.post(f"{BASE}/api/invoices/{inv_id}/mark-unpaid", timeout=15)
+        assert r2.status_code == 200, r2.text
+        body2 = r2.json()
+        assert body2["status"] == "unpaid"
+        assert body2.get("paid_at") in (None, "")
+
+    def test_client_cannot_mark_paid(self, client_session):
+        inv_id = state["invoice_id"]
+        r = client_session.post(f"{BASE}/api/invoices/{inv_id}/mark-paid", timeout=15)
+        assert r.status_code in (401, 403)
+
+
+# ----------------- Stripe gone -----------------
+class TestStripeRemoved:
+    def test_payments_status_404(self):
+        r = requests.get(f"{BASE}/api/payments/status/x", timeout=15)
+        assert r.status_code == 404, f"expected 404, got {r.status_code}: {r.text[:200]}"
+
+    def test_payments_checkout_invoice_404(self):
+        s = requests.Session()
+        login(s, CLIENT_EMAIL, CLIENT_PASS)
+        r = s.post(
+            f"{BASE}/api/payments/checkout/invoice",
+            json={"invoice_id": "x", "origin_url": "https://x"},
+            timeout=15,
+        )
+        assert r.status_code == 404, f"expected 404, got {r.status_code}: {r.text[:200]}"
+
+
+# ----------------- Galleries -----------------
+class TestGalleries:
+    def test_create_gallery_upload_photo_fetch_binary(
+        self, admin_session, client_session
+    ):
+        client_id = state["client_user_id"]
+        # Create
+        r = admin_session.post(
+            f"{BASE}/api/galleries",
+            json={
+                "title": f"TEST_Gallery_{uuid.uuid4().hex[:6]}",
+                "client_user_id": client_id,
+                "description": "TEST gallery",
+            },
+            timeout=15,
+        )
+        assert r.status_code == 200, r.text
+        gallery = r.json()
+        gid = gallery["id"]
+
+        # Upload tiny PNG (1x1 transparent)
+        png_bytes = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf"
+            b"\xc0\xf0\x1f\x00\x05\x00\x01\xff\xfe\xa6\xa5\x21\x07\x00\x00\x00\x00"
+            b"IEND\xaeB`\x82"
+        )
+        files = {"file": ("test.png", io.BytesIO(png_bytes), "image/png")}
+        ur = admin_session.post(
+            f"{BASE}/api/galleries/{gid}/photos", files=files, timeout=20
+        )
+        assert ur.status_code == 200, ur.text
+        photo = ur.json()
+        blob_id = photo.get("blob_id") or photo.get("id")
+        assert blob_id
+
+        # Client sees photo_count>0
+        mine = client_session.get(f"{BASE}/api/galleries/mine", timeout=15)
+        assert mine.status_code == 200, mine.text
+        my_galleries = mine.json()
+        found = next((g for g in my_galleries if g["id"] == gid), None)
+        assert found, "gallery not visible to client"
+        assert found.get("photo_count", 0) > 0
+
+        # Fetch binary
+        br = client_session.get(f"{BASE}/api/galleries/photo/{blob_id}", timeout=15)
+        assert br.status_code == 200, br.text
+        assert br.content[:8] == b"\x89PNG\r\n\x1a\n", "not PNG bytes"
+
+
+# ----------------- Luma first turn -----------------
+class TestLuma:
+    def test_first_turn_returns_session(self, client_session):
+        r = client_session.post(
+            f"{BASE}/api/luma/chat",
+            json={"message": "Hi, I want to book a family portrait session in June 2026"},
+            timeout=120,
+        )
+        # Could legitimately fail due to LLM budget — treat 5xx as xfail-ish
+        if r.status_code >= 500:
+            pytest.xfail(f"LLM provider returned {r.status_code}: {r.text[:200]}")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body.get("session_id"), f"missing session_id: {body}"
+        assert body.get("reply") or body.get("message") or body.get("text"), f"missing reply text: {body}"

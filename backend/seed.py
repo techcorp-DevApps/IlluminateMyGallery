@@ -13,6 +13,8 @@ from models import new_id, now_iso
 async def seed_admin() -> None:
     email = os.environ["ADMIN_EMAIL"].lower()
     password = os.environ["ADMIN_PASSWORD"]
+    # Remove any orphan admin accounts created under a previous ADMIN_EMAIL.
+    await db.users.delete_many({"role": "admin", "email": {"$ne": email}})
     existing = await db.users.find_one({"email": email})
     if existing is None:
         await db.users.insert_one(
@@ -26,10 +28,15 @@ async def seed_admin() -> None:
                 "created_at": now_iso(),
             }
         )
-    elif not verify_password(password, existing.get("password_hash", "")):
-        await db.users.update_one(
-            {"email": email}, {"$set": {"password_hash": hash_password(password)}}
-        )
+    else:
+        # Ensure role is admin (in case email pre-existed as a user) and password matches env.
+        updates = {}
+        if existing.get("role") != "admin":
+            updates["role"] = "admin"
+        if not verify_password(password, existing.get("password_hash", "")):
+            updates["password_hash"] = hash_password(password)
+        if updates:
+            await db.users.update_one({"email": email}, {"$set": updates})
 
 
 async def seed_test_user() -> None:
