@@ -13,11 +13,11 @@ from starlette.middleware.cors import CORSMiddleware
 from routes.admin_routes import router as admin_router
 from routes.auth_routes import router as auth_router
 from routes.bookings_routes import router as bookings_router
+from routes.contract_templates_routes import router as contract_templates_router
 from routes.documents_routes import router as documents_router
 from routes.galleries_routes import router as galleries_router
 from routes.invoices_routes import router as invoices_router
 from routes.luma_routes import router as luma_router
-from routes.payments_routes import router as payments_router
 from routes.portfolio_routes import router as portfolio_router
 from routes.services_routes import router as services_router
 from seed import run_seed
@@ -38,18 +38,14 @@ for r in (
     bookings_router,
     galleries_router,
     documents_router,
+    contract_templates_router,
     invoices_router,
-    payments_router,
     admin_router,
     luma_router,
 ):
     app.include_router(r)
 
-# Stripe webhook is a top-level path inside payments_router (already /api/payments/webhook/stripe)
-# but spec wants /api/webhook/stripe — expose alias here:
-from routes.payments_routes import webhook as stripe_webhook  # noqa: E402
-
-app.add_api_route("/api/webhook/stripe", stripe_webhook, methods=["POST"], include_in_schema=False)
+# Stripe webhook alias removed — PayID-based payment flow does not use Stripe webhooks.
 
 
 # CORS — explicit origins so cookies work cross-site

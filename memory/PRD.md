@@ -9,53 +9,63 @@
 
 ## User personas
 - **Photographer (admin)** — runs the studio, manages portfolio, services,
-  bookings, client galleries, documents and invoices.
+  bookings, client galleries, contracts and invoices.
 - **Client (customer)** — books a session, reviews & e-signs documents, downloads
-  their delivered photos, pays invoices.
+  their delivered photos, pays invoices via PayID.
 - **Prospective lead** — talks to Luma in chat to book a session without an account.
 
 ## Core requirements (static)
 - JWT-based email/password auth, role-gated (`admin` / `user`).
 - Editorial magazine-style design (Cormorant Garamond + Manrope).
-- Immersive "lights-out" dark-mode viewer for galleries (hides nav/footer and the
-  rest of the page when active).
-- Stripe Checkout for invoice payments.
+- Immersive "lights-out" dark-mode viewer for galleries.
+- **PayID-first invoice payments** (Australian instant payments). No Stripe.
 - E-signature for contracts/documents (type-name + timestamp).
-- Storage abstraction (`StorageAdapter`) so photo blobs can be swapped from
-  MongoDB to S3/Railway-Postgres later.
+- Storage abstraction (`StorageAdapter`) so blobs can be swapped from
+  MongoDB to Postgres + S3 later.
 - Luma AI booking agent per provided spec (`luma.system.ts`, schemas,
   validators, tools).
+- Vendor-neutral: no Emergent runtime dependencies in production path.
+- Resend transactional emails sent from task-specific subdomains.
+- Contract template pack: 5 photography agreements + portfolio release,
+  auto-filled from client + booking.
 
 ## What's been implemented (2026-02)
-- **Backend (FastAPI)**: JWT auth + bcrypt + cookie sessions, **working `/api/auth/refresh` endpoint**, admin seed,
-  Mongo-backed storage adapter, services CRUD, bookings CRUD with
+- **Backend (FastAPI)**: JWT auth + bcrypt + cookie sessions + `/api/auth/refresh`,
+  admin seed, Mongo-backed `StorageAdapter`, services CRUD, bookings CRUD with
   approval workflow, galleries with photo upload/download, e-sign documents,
-  invoices, Stripe Checkout via `emergentintegrations`, Luma agent endpoint
-  driven by litellm + EMERGENT_LLM_KEY using OpenAI function tools.
-- **Frontend (React + Tailwind)**: Landing, Portfolio (with lights-out viewer
-  on portfolio images too), Login/Register, public Booking flow,
-  Customer dashboard (Bookings / Galleries / Documents / Invoices),
-  Customer Gallery viewer with lights-out, Admin dashboard
-  (Overview / **Calendar** / Bookings / Clients / Galleries / Documents / Invoices /
-  Portfolio / Services), floating Luma chat widget on every page.
-- **Email notifications (Resend)**: editorial-style transactional templates for
-  booking received → admin, booking approved → client, document sent → client,
-  invoice issued → client, Luma handoff → admin. Sending domain
-  `illuminatestudios.com.au` (verified). All sends are best-effort: failures
-  are logged but never break the underlying create/update.
-- **AI booking agent (Luma)**: Python port of the provided spec. Maintains
-  `BookingState` in Mongo (`luma_sessions`), executes tools sequentially,
-  creates pending bookings tagged `source: "luma"` (admin can approve).
-  Handoff requests are stored in `luma_handoffs` AND emailed to the studio.
+  PayID invoices with auto-generated references (`INV-YYYY-NNNN`) + admin mark-paid,
+  Luma agent endpoint driven by litellm + OpenAI gpt-4.1 (your key) with optional
+  Emergent fallback, contract template engine that fills `[Placeholder]` fields
+  from client + booking data.
+- **Contract templates** (verbatim from uploaded .docx):
+  Family Portrait, Anniversary & Couples, Kids Birthday, Event, Wedding,
+  Optional Portfolio & Marketing Release — shared T&Cs in `_shared_terms.md`,
+  per-template specs in `contracts/templates.py`.
+- **Frontend (React + Tailwind)**: Landing, Portfolio, Login/Register,
+  public Booking flow, Customer dashboard (Bookings / Galleries / Documents /
+  Invoices with PayID + BSB + copy-able reference), Customer Gallery viewer
+  with lights-out, Admin dashboard (Overview / Calendar / Bookings / Clients /
+  Galleries / Documents [template + custom] / Invoices [auto-from-booking +
+  manual + mark-paid] / Portfolio / Services), floating Luma chat widget.
+- **Email notifications (Resend)**: invoices sent from `accounts@invoicing.…`,
+  notifications from `donotreply@notifications.…`. Best-effort: failures logged
+  but never crash the underlying create/update.
+- **AI booking agent (Luma)**: Python port of the provided spec. Multi-turn
+  with `BookingState` in Mongo, OpenAI gpt-4.1 with tool calling, creates
+  pending bookings tagged `source: "luma"` + emails admin.
+- **Vendor-neutral**: Stripe removed entirely (PayID flow), `stripe` and
+  `emergentintegrations` uninstalled. Only Emergent reference left is an
+  optional LLM-key fallback block in `luma/agent.py` (clearly marked, deletable).
 - **Test credentials**: admin `photographer@illuminatestudios.com / Illuminate2026!`,
   client `client@example.com / client123`.
 
 ## Prioritized backlog
-- **P1 (waiting on user)**: swap MongoDB blob storage for Postgres/S3 once
-  RAILWAY_TOKEN, RAILWAY_PUBLIC_URL, PROJECT_ID are provided.
-- **P1 (waiting on user)**: top up `EMERGENT_LLM_KEY` budget so Luma can
-  finalise full multi-turn bookings end-to-end in the preview environment.
+- **P1 (waiting on user)**: Railway deploy. See `/app/RAILWAY_DEPLOY.md` for
+  full step-by-step + env var list. Recommended path: Mongo Atlas + Cloudflare R2
+  (no code change). Postgres swap is a follow-up if you want it later.
 - **P2**: Bulk photo download (zip) for client galleries.
-- **P2**: Luma "edit-before-finalising" UI (currently agent finalises directly).
-- **P2**: Stripe webhook signature verification end-to-end test.
+- **P2**: Luma "edit-before-finalising" UI for create_booking.
+- **P2**: Auto-reconcile PayID payments via bank-feed integration (manual
+  mark-paid works today).
+- **P2**: Pre-session reminder emails (7 days out) — quiet revenue lift.
 - **P3**: Photographer multi-user support.

@@ -28,10 +28,20 @@ def _enabled() -> bool:
     return bool(os.environ.get("RESEND_API_KEY"))
 
 
-def _from_addr() -> str:
+def _from_addr_notifications() -> str:
     name = os.environ.get("MAIL_FROM_NAME", _BRAND)
-    addr = os.environ.get("MAIL_FROM", "onboarding@resend.dev")
+    addr = os.environ.get("MAIL_FROM_NOTIFICATIONS", "onboarding@resend.dev")
     return f"{name} <{addr}>"
+
+
+def _from_addr_invoices() -> str:
+    name = os.environ.get("MAIL_FROM_NAME", _BRAND)
+    addr = os.environ.get("MAIL_FROM_INVOICES", "onboarding@resend.dev")
+    return f"{name} Accounts <{addr}>"
+
+
+def _from_addr(channel: str) -> str:
+    return _from_addr_invoices() if channel == "invoices" else _from_addr_notifications()
 
 
 def _public_url() -> str:
@@ -75,7 +85,7 @@ def _wrap(title: str, intro: str, body_html: str, cta: Optional[tuple[str, str]]
 </body></html>"""
 
 
-async def _send(to: str, subject: str, html: str, tag: str) -> None:
+async def _send(to: str, subject: str, html: str, tag: str, channel: str = "notifications") -> None:
     if not _enabled():
         log.info("[email:%s] skipped (no RESEND_API_KEY) → %s", tag, to)
         return
@@ -84,7 +94,7 @@ async def _send(to: str, subject: str, html: str, tag: str) -> None:
     try:
         resend.api_key = os.environ["RESEND_API_KEY"]
         params = {
-            "from": _from_addr(),
+            "from": _from_addr(channel),
             "to": [to],
             "subject": subject,
             "html": html,
@@ -169,22 +179,39 @@ async def email_document_sent_to_client(document: dict, client_email: str) -> No
 
 async def email_invoice_sent_to_client(invoice: dict, client_email: str) -> None:
     public = _public_url()
+    payid = os.environ.get("PAYID_IDENTIFIER", "")
+    bsb = os.environ.get("INVOICE_BSB", "")
+    acct = os.environ.get("INVOICE_ACCOUNT_NUMBER", "")
+    acct_name = os.environ.get("INVOICE_ACCOUNT_NAME", _BRAND)
+    ref = invoice.get("reference") or invoice.get("id", "")
     body = f"""
     <p>An invoice has been issued for your booking.</p>
-    <p><strong>{invoice.get('title')}</strong><br/>
+    <p><strong>Reference:</strong> {ref}<br/>
+    <strong>{invoice.get('title')}</strong><br/>
     <strong>Amount:</strong> {invoice.get('currency')} {float(invoice.get('amount', 0)):.2f}</p>
-    <p>You can pay securely from your portal.</p>
+    <p style="background:#F0EFEB;border:1px solid #E5E3DB;padding:14px;">
+      <strong>Pay by PayID</strong><br/>
+      PayID: <strong>{payid}</strong><br/>
+      Reference (please include exactly): <strong>{ref}</strong><br/><br/>
+      <em>Or by bank transfer:</em><br/>
+      BSB: {bsb}<br/>
+      Account: {acct}<br/>
+      Account name: {acct_name}<br/>
+      Reference: <strong>{ref}</strong>
+    </p>
+    <p>Your invoice and payment instructions are also available in your portal.</p>
     """
     await _send(
         client_email,
-        f"Invoice · {invoice.get('title')}",
+        f"Invoice {ref} · {invoice.get('title')}",
         _wrap(
             "Invoice",
-            "An invoice for your records.",
+            f"Invoice {ref}.",
             body,
-            ("Pay invoice", f"{public}/dashboard/invoices") if public else None,
+            ("Open invoice", f"{public}/dashboard/invoices") if public else None,
         ),
         "invoice_sent_client",
+        channel="invoices",
     )
 
 

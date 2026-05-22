@@ -1,16 +1,29 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
+import { InvoiceCard } from "./CustomerInvoices";
 
 export default function AdminInvoices() {
     const [invoices, setInvoices] = useState([]);
     const [clients, setClients] = useState([]);
+    const [bookings, setBookings] = useState([]);
     const [creating, setCreating] = useState(false);
-    const [form, setForm] = useState({ client_user_id: "", title: "", amount: 0, currency: "AUD" });
+    const [form, setForm] = useState({
+        client_user_id: "",
+        title: "",
+        amount: 0,
+        currency: "AUD",
+        description: "",
+    });
 
     const refresh = useCallback(async () => {
-        const [i, c] = await Promise.all([api.get("/invoices"), api.get("/admin/clients")]);
+        const [i, c, b] = await Promise.all([
+            api.get("/invoices"),
+            api.get("/admin/clients"),
+            api.get("/bookings"),
+        ]);
         setInvoices(i.data);
         setClients(c.data);
+        setBookings(b.data);
     }, []);
 
     useEffect(() => {
@@ -20,27 +33,70 @@ export default function AdminInvoices() {
     const create = async (e) => {
         e.preventDefault();
         await api.post("/invoices", { ...form, amount: parseFloat(form.amount) });
-        setForm({ client_user_id: "", title: "", amount: 0, currency: "AUD" });
+        setForm({ client_user_id: "", title: "", amount: 0, currency: "AUD", description: "" });
         setCreating(false);
         refresh();
     };
 
+    const autoFromBooking = async (bid) => {
+        if (!bid) return;
+        await api.post(`/invoices/auto-from-booking/${bid}`);
+        refresh();
+    };
+
+    const markPaid = async (inv) => {
+        await api.post(`/invoices/${inv.id}/mark-paid`);
+        refresh();
+    };
+
+    const eligibleBookings = bookings.filter(
+        (b) => b.status === "approved" || b.status === "pending"
+    );
+
     return (
         <div>
-            <div className="flex justify-between items-end mb-6">
+            <div className="flex justify-between items-end mb-6 flex-wrap gap-4">
                 <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                    {invoices.length} invoices
+                    {invoices.length} invoices · {invoices.filter((i) => i.status === "unpaid").length} unpaid
                 </p>
-                <button
-                    onClick={() => setCreating((v) => !v)}
-                    className="text-xs uppercase tracking-[0.3em] bg-foreground text-background px-5 py-2"
-                    data-testid="admin-invoice-new-btn"
-                >
-                    {creating ? "Cancel" : "+ New invoice"}
-                </button>
+                <div className="flex gap-2 items-center flex-wrap">
+                    {eligibleBookings.length > 0 && (
+                        <select
+                            onChange={(e) => {
+                                autoFromBooking(e.target.value);
+                                e.target.value = "";
+                            }}
+                            className="text-xs border border-border bg-background px-3 py-2"
+                            data-testid="admin-invoice-auto-from-booking"
+                            defaultValue=""
+                        >
+                            <option value="" disabled>
+                                + Auto-invoice from booking…
+                            </option>
+                            {eligibleBookings.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                    {b.client_name || b.client_email} · {b.package_name} · {b.preferred_date} · AUD{" "}
+                                    {b.estimated_price?.toFixed(0)}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                    <button
+                        onClick={() => setCreating((v) => !v)}
+                        className="text-xs uppercase tracking-[0.3em] bg-foreground text-background px-5 py-2"
+                        data-testid="admin-invoice-new-btn"
+                    >
+                        {creating ? "Cancel" : "+ Custom invoice"}
+                    </button>
+                </div>
             </div>
+
             {creating && (
-                <form onSubmit={create} className="border border-border p-6 mb-6 grid grid-cols-1 md:grid-cols-12 gap-4" data-testid="admin-invoice-form">
+                <form
+                    onSubmit={create}
+                    className="border border-border p-6 mb-6 grid grid-cols-1 md:grid-cols-12 gap-4"
+                    data-testid="admin-invoice-form"
+                >
                     <div className="md:col-span-4">
                         <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Client</label>
                         <select
@@ -90,6 +146,16 @@ export default function AdminInvoices() {
                         />
                     </div>
                     <div className="md:col-span-12">
+                        <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Description (shown to client)</label>
+                        <textarea
+                            rows={2}
+                            value={form.description}
+                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            className="w-full bg-transparent border border-border p-2 mt-1"
+                            data-testid="admin-invoice-description"
+                        />
+                    </div>
+                    <div className="md:col-span-12">
                         <button
                             type="submit"
                             className="bg-foreground text-background text-xs uppercase tracking-[0.3em] px-6 py-3"
@@ -104,31 +170,9 @@ export default function AdminInvoices() {
             {invoices.length === 0 ? (
                 <p className="text-muted-foreground text-center py-12">No invoices yet.</p>
             ) : (
-                <div className="divide-y divide-border border border-border" data-testid="admin-invoices-list">
+                <div className="space-y-6" data-testid="admin-invoices-list">
                     {invoices.map((inv) => (
-                        <div key={inv.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-5">
-                            <div className="md:col-span-7">
-                                <p className="font-display text-xl">{inv.title}</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {new Date(inv.created_at).toLocaleDateString()} ·{" "}
-                                    {clients.find((c) => c.id === inv.client_user_id)?.email || inv.client_user_id}
-                                </p>
-                            </div>
-                            <div className="md:col-span-3 font-mono-ui">
-                                {inv.currency} {inv.amount.toFixed(2)}
-                            </div>
-                            <div className="md:col-span-2 text-right">
-                                <span
-                                    className={`text-[10px] uppercase tracking-[0.3em] border px-3 py-1 ${
-                                        inv.status === "paid"
-                                            ? "border-foreground bg-foreground text-background"
-                                            : "border-border"
-                                    }`}
-                                >
-                                    {inv.status}
-                                </span>
-                            </div>
-                        </div>
+                        <InvoiceCard key={inv.id} inv={inv} onMarkPaid={markPaid} />
                     ))}
                 </div>
             )}

@@ -155,15 +155,44 @@ class InvoiceIn(BaseModel):
     amount: float
     currency: str = "AUD"
     booking_id: Optional[str] = None
+    description: Optional[str] = ""
+
+
+class PaymentInstructions(BaseModel):
+    payid: str
+    business_name: str
+    bsb: str
+    account_number: str
+    account_name: str
+    reference: str
 
 
 class InvoiceOut(BaseModel):
     id: str
+    reference: str
     client_user_id: str
     title: str
+    description: Optional[str] = ""
     amount: float
     currency: str
     booking_id: Optional[str] = None
-    status: str  # unpaid | paid
+    status: str  # unpaid | paid | cancelled
     created_at: str
     paid_at: Optional[str] = None
+    payment_instructions: Optional[PaymentInstructions] = None
+
+
+# --- Contract templates / documents-from-template ---
+class ContractTemplateOut(BaseModel):
+    id: str
+    key: str
+    title: str
+    service_category: str
+    body: str
+
+
+class DocumentFromTemplateIn(BaseModel):
+    template_key: str
+    client_user_id: str
+    booking_id: Optional[str] = None
+    overrides: Optional[dict] = None
