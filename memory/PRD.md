@@ -27,7 +27,7 @@
   validators, tools).
 
 ## What's been implemented (2026-02)
-- **Backend (FastAPI)**: JWT auth + bcrypt + cookie sessions, admin seed,
+- **Backend (FastAPI)**: JWT auth + bcrypt + cookie sessions, **working `/api/auth/refresh` endpoint**, admin seed,
   Mongo-backed storage adapter, services CRUD, bookings CRUD with
   approval workflow, galleries with photo upload/download, e-sign documents,
   invoices, Stripe Checkout via `emergentintegrations`, Luma agent endpoint
@@ -36,21 +36,26 @@
   on portfolio images too), Login/Register, public Booking flow,
   Customer dashboard (Bookings / Galleries / Documents / Invoices),
   Customer Gallery viewer with lights-out, Admin dashboard
-  (Overview / Bookings / Clients / Galleries / Documents / Invoices /
+  (Overview / **Calendar** / Bookings / Clients / Galleries / Documents / Invoices /
   Portfolio / Services), floating Luma chat widget on every page.
+- **Email notifications (Resend)**: editorial-style transactional templates for
+  booking received → admin, booking approved → client, document sent → client,
+  invoice issued → client, Luma handoff → admin. Sending domain
+  `illuminatestudios.com.au` (verified). All sends are best-effort: failures
+  are logged but never break the underlying create/update.
 - **AI booking agent (Luma)**: Python port of the provided spec. Maintains
   `BookingState` in Mongo (`luma_sessions`), executes tools sequentially,
   creates pending bookings tagged `source: "luma"` (admin can approve).
-  Handoff requests are stored in `luma_handoffs`.
+  Handoff requests are stored in `luma_handoffs` AND emailed to the studio.
 - **Test credentials**: admin `photographer@illuminatestudios.com / Illuminate2026!`,
   client `client@example.com / client123`.
 
 ## Prioritized backlog
-- **P1**: replace MongoDB blob storage with the planned Postgres/S3 adapter for
-  Railway deploy (already abstracted behind `storage.py`).
-- **P1**: Stripe webhook signature verification end-to-end test.
-- **P2**: Email notifications (booking received / approved / contract sent).
-- **P2**: Admin calendar view (currently bookings list only).
+- **P1 (waiting on user)**: swap MongoDB blob storage for Postgres/S3 once
+  RAILWAY_TOKEN, RAILWAY_PUBLIC_URL, PROJECT_ID are provided.
+- **P1 (waiting on user)**: top up `EMERGENT_LLM_KEY` budget so Luma can
+  finalise full multi-turn bookings end-to-end in the preview environment.
 - **P2**: Bulk photo download (zip) for client galleries.
 - **P2**: Luma "edit-before-finalising" UI (currently agent finalises directly).
+- **P2**: Stripe webhook signature verification end-to-end test.
 - **P3**: Photographer multi-user support.

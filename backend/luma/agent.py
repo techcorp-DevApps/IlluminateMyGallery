@@ -11,6 +11,7 @@ import litellm
 from emergentintegrations.llm.utils import get_integration_proxy_url
 
 from db import db
+from email_service import email_booking_received_to_admin, email_luma_handoff_to_admin
 from luma.schemas import BookingState
 from luma.system import LUMA_SYSTEM_PROMPT
 from luma.tools import LUMA_TOOLS, LUMA_TOOL_NAMES
@@ -164,6 +165,8 @@ async def tool_create_booking(args: Dict[str, Any], state: BookingState, prospec
         "created_at": _now_iso(),
     }
     await db.bookings.insert_one(booking)
+    # Best-effort notify the studio of the new Luma booking.
+    await email_booking_received_to_admin(booking)
     return {
         "ok": True,
         "booking_id": booking["id"],
@@ -173,19 +176,20 @@ async def tool_create_booking(args: Dict[str, Any], state: BookingState, prospec
 
 
 async def tool_handoff_to_human(args: Dict[str, Any], state: BookingState) -> Dict[str, Any]:
-    await db.luma_handoffs.insert_one(
-        {
-            "id": str(uuid.uuid4()),
-            "session_id": state.session_id,
-            "reason": args.get("reason", ""),
-            "summary": args.get("summary", ""),
-            "client_email": state.client.email,
-            "client_name": state.client.full_name,
-            "client_phone": state.client.phone,
-            "resolved": False,
-            "created_at": _now_iso(),
-        }
-    )
+    handoff = {
+        "id": str(uuid.uuid4()),
+        "session_id": state.session_id,
+        "reason": args.get("reason", ""),
+        "summary": args.get("summary", ""),
+        "client_email": state.client.email,
+        "client_name": state.client.full_name,
+        "client_phone": state.client.phone,
+        "resolved": False,
+        "created_at": _now_iso(),
+    }
+    await db.luma_handoffs.insert_one(handoff)
+    handoff.pop("_id", None)
+    await email_luma_handoff_to_admin(handoff)
     return {"ok": True, "message": "Handed off to the studio. A team member will reach out."}
 
 

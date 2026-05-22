@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import get_current_admin, get_current_user
 from db import db
+from email_service import email_booking_approved_to_client, email_booking_received_to_admin
 from models import BookingCreateIn, BookingOut, new_id, now_iso
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
@@ -41,6 +42,7 @@ async def create_booking(payload: BookingCreateIn, user: dict = Depends(get_curr
     doc = await _build_booking_from_input(user, payload, "manual")
     await db.bookings.insert_one(doc)
     doc.pop("_id", None)
+    await email_booking_received_to_admin(doc)
     return doc
 
 
@@ -66,4 +68,6 @@ async def change_status(booking_id: str, status: str, _: dict = Depends(get_curr
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
     doc = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if status == "approved" and doc:
+        await email_booking_approved_to_client(doc)
     return doc

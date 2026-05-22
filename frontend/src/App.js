@@ -22,6 +22,7 @@ import CustomerInvoices from "@/pages/CustomerInvoices";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminOverview from "@/pages/AdminOverview";
 import AdminBookings from "@/pages/AdminBookings";
+import AdminCalendar from "@/pages/AdminCalendar";
 import AdminClients from "@/pages/AdminClients";
 import AdminGalleries from "@/pages/AdminGalleries";
 import AdminDocuments from "@/pages/AdminDocuments";
@@ -75,6 +76,7 @@ function App() {
                             >
                                 <Route index element={<Navigate to="overview" replace />} />
                                 <Route path="overview" element={<AdminOverview />} />
+                                <Route path="calendar" element={<AdminCalendar />} />
                                 <Route path="bookings" element={<AdminBookings />} />
                                 <Route path="clients" element={<AdminClients />} />
                                 <Route path="galleries" element={<AdminGalleries />} />

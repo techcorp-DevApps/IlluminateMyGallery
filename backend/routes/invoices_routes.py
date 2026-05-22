@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import get_current_admin, get_current_user
 from db import db
+from email_service import email_invoice_sent_to_client
 from models import InvoiceIn, InvoiceOut, new_id, now_iso
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
@@ -25,6 +26,9 @@ async def create_invoice(payload: InvoiceIn, _: dict = Depends(get_current_admin
     }
     await db.invoices.insert_one(doc)
     doc.pop("_id", None)
+    client = await db.users.find_one({"id": payload.client_user_id}, {"_id": 0, "password_hash": 0})
+    if client:
+        await email_invoice_sent_to_client(doc, client.get("email", ""))
     return doc
 
 
