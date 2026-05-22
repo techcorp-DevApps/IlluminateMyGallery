@@ -16,7 +16,8 @@ from luma.schemas import BookingState
 from luma.system import LUMA_SYSTEM_PROMPT
 from luma.tools import LUMA_TOOLS, LUMA_TOOL_NAMES
 
-MODEL = "gpt-4.1-mini"  # cost-effective; supports tools
+# Model: configurable via LUMA_MODEL. Default: gpt-4.1 (sharp tool-calling + warm natural prose).
+DEFAULT_MODEL = "gpt-4.1"
 
 
 def _now_iso() -> str:
@@ -196,20 +197,28 @@ async def tool_handoff_to_human(args: Dict[str, Any], state: BookingState) -> Di
 # ----- LLM call -----
 
 def _llm_params(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    api_key = os.environ["EMERGENT_LLM_KEY"]
-    params: Dict[str, Any] = {
-        "model": MODEL,
+    """Pick the credentials provider in this order:
+    1. OPENAI_API_KEY — direct OpenAI (preferred when set; full budget control).
+    2. EMERGENT_LLM_KEY — proxied via the Emergent LLM gateway.
+    """
+    model = os.environ.get("LUMA_MODEL", DEFAULT_MODEL)
+    base: Dict[str, Any] = {
+        "model": model,
         "messages": messages,
-        "api_key": api_key,
         "tools": LUMA_TOOLS,
         "tool_choice": "auto",
         "parallel_tool_calls": False,
         "temperature": 0.4,
     }
-    if api_key.startswith("sk-emergent-"):
-        params["api_base"] = get_integration_proxy_url() + "/llm"
-        params["custom_llm_provider"] = "openai"
-    return params
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        base["api_key"] = openai_key
+        return base
+    emergent_key = os.environ["EMERGENT_LLM_KEY"]
+    base["api_key"] = emergent_key
+    base["api_base"] = get_integration_proxy_url() + "/llm"
+    base["custom_llm_provider"] = "openai"
+    return base
 
 
 async def _llm_call(messages: List[Dict[str, Any]]):
