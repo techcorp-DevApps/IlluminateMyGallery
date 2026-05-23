@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
 from pathlib import Path
 
 from auth import hash_password, verify_password
@@ -62,6 +61,7 @@ DEFAULT_ADDONS = [
     {"name": "Second photographer", "price": 600.0},
 ]
 
+# Starter packages — admin can edit/add/remove these through the Services UI.
 DEFAULT_PACKAGES = [
     {
         "package_name": "The Studio Portrait",
@@ -102,25 +102,23 @@ DEFAULT_PACKAGES = [
 
 
 async def seed_services() -> None:
-    """Idempotent: only seed if services collection is empty."""
-    has_any = await db.service_packages.find_one()
-    if has_any:
+    """Idempotent: only seeds the starter catalogue when the collection is empty.
+    Admin edits via the Services UI are preserved across restarts."""
+    if await db.service_packages.find_one():
         return
-    addons = []
-    for a in DEFAULT_ADDONS:
-        addons.append({"addon_id": new_id(), **a})
+    await db.service_addons.delete_many({})
+    addons = [{"addon_id": new_id(), **a} for a in DEFAULT_ADDONS]
     await db.service_addons.insert_many(addons)
     addon_ids = [a["addon_id"] for a in addons]
-    packages = []
-    for p in DEFAULT_PACKAGES:
-        packages.append(
-            {
-                "package_id": new_id(),
-                "addon_ids": addon_ids,
-                "is_active": True,
-                **p,
-            }
-        )
+    packages = [
+        {
+            "package_id": new_id(),
+            "addon_ids": addon_ids,
+            "is_active": True,
+            **p,
+        }
+        for p in DEFAULT_PACKAGES
+    ]
     await db.service_packages.insert_many(packages)
 
 
@@ -162,9 +160,7 @@ DEFAULT_PORTFOLIO = [
 async def seed_portfolio() -> None:
     if await db.portfolio.find_one():
         return
-    docs = []
-    for p in DEFAULT_PORTFOLIO:
-        docs.append({"id": new_id(), "created_at": now_iso(), **p})
+    docs = [{"id": new_id(), "created_at": now_iso(), **p} for p in DEFAULT_PORTFOLIO]
     await db.portfolio.insert_many(docs)
 
 

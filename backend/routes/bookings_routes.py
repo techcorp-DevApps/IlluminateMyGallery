@@ -46,6 +46,27 @@ async def create_booking(payload: BookingCreateIn, user: dict = Depends(get_curr
     return doc
 
 
+class AdminBookingCreateIn(BookingCreateIn):
+    """Admin can create a booking on behalf of a client."""
+
+    client_user_id: str
+
+
+@router.post("/admin", response_model=BookingOut)
+async def admin_create_booking(payload: AdminBookingCreateIn, _: dict = Depends(get_current_admin)):
+    client = await db.users.find_one({"id": payload.client_user_id})
+    if not client or client.get("role") != "user":
+        raise HTTPException(status_code=404, detail="Client not found")
+    booking_input = BookingCreateIn(**payload.model_dump(exclude={"client_user_id"}))
+    doc = await _build_booking_from_input(client, booking_input, "manual_admin")
+    # Admin-created bookings come in pre-approved.
+    doc["status"] = "approved"
+    await db.bookings.insert_one(doc)
+    doc.pop("_id", None)
+    await email_booking_approved_to_client(doc)
+    return doc
+
+
 @router.get("/mine", response_model=List[BookingOut])
 async def my_bookings(user: dict = Depends(get_current_user)):
     rows = await db.bookings.find({"user_id": user["id"]}, {"_id": 0}).to_list(200)

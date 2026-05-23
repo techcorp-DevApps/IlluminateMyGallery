@@ -117,11 +117,16 @@ async def delete_gallery(gallery_id: str, _: dict = Depends(get_current_admin)):
     return {"ok": True}
 
 
-# Public photo route, authenticated. We do not require strict ownership for download
-# because the client portal needs a simple <img src="..."> with cookies — the
-# get_current_user gate ensures only signed-in users can fetch any blob.
 @router.get("/photo/{blob_id}")
 async def get_photo(blob_id: str, user: dict = Depends(get_current_user)):
+    # Authorisation: client can only access photos in galleries assigned to them.
+    if user.get("role") != "admin":
+        gallery = await db.galleries.find_one(
+            {"photos.blob_id": blob_id, "client_user_id": user["id"]},
+            {"_id": 0, "id": 1},
+        )
+        if not gallery:
+            raise HTTPException(status_code=403, detail="Forbidden")
     blob = await storage.get(blob_id)
     if not blob:
         raise HTTPException(status_code=404, detail="Not found")
@@ -134,6 +139,13 @@ async def get_photo(blob_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/photo/{blob_id}/download")
 async def download_photo(blob_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        gallery = await db.galleries.find_one(
+            {"photos.blob_id": blob_id, "client_user_id": user["id"]},
+            {"_id": 0, "id": 1},
+        )
+        if not gallery:
+            raise HTTPException(status_code=403, detail="Forbidden")
     blob = await storage.get(blob_id)
     if not blob:
         raise HTTPException(status_code=404, detail="Not found")
