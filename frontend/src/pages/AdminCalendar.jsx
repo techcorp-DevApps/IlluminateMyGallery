@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "../lib/api";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Plus } from "lucide-react";
 
 const STATUS_COLOR = {
     pending: "border-border",
