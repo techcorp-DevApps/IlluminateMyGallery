@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 const HERO_IMAGES = [
     "https://images.unsplash.com/photo-1648046016726-9260b555902b",
@@ -11,6 +12,16 @@ const HERO_IMAGES = [
 
 export default function Landing() {
     const [items, setItems] = useState([]);
+    const { user, checked } = useAuth();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        // If a signed-in admin or client lands on '/', send them straight to their portal.
+        // This also handles the "page refresh while logged in" case.
+        if (!checked || !user || user === false) return;
+        if (user.role === "admin") navigate("/admin", { replace: true });
+        else if (user.role === "user") navigate("/dashboard", { replace: true });
+    }, [user, checked, navigate]);
 
     useEffect(() => {
         api.get("/portfolio").then((r) => setItems(r.data)).catch(() => {});

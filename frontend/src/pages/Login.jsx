@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, user, checked } = useAuth();
     const nav = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        if (!checked || !user || user === false) return;
+        nav(user.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+    }, [user, checked, nav]);
 
     const submit = async (e) => {
         e.preventDefault();

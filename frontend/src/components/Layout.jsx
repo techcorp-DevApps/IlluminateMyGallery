@@ -27,7 +27,11 @@ export default function Layout({ children }) {
         <div className="min-h-screen flex flex-col">
             <header className="border-b border-border bg-background">
                 <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 py-5 flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-3" data-testid="brand-link">
+                    <Link
+                        to={user && user !== false ? (user.role === "admin" ? "/admin" : "/dashboard") : "/"}
+                        className="flex items-center gap-3"
+                        data-testid="brand-link"
+                    >
                         <span className="font-display text-3xl tracking-tighter leading-none">Illuminate</span>
                         <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground border-l border-border pl-3">
                             Studios
