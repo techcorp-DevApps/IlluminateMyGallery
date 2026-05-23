@@ -66,9 +66,61 @@ export default function AdminCalendar() {
         api.get("/bookings").then((r) => setBookings(r.data));
     }, []);
 
+    const [clients, setClients] = useState([]);
+    const [services, setServices] = useState({ packages: [] });
+    const [creating, setCreating] = useState(false);
+    const [form, setForm] = useState({
+        client_user_id: "",
+        package_id: "",
+        preferred_time: "10:00",
+        location_address: "Studio",
+        suburb: "Collingwood",
+        notes: "",
+    });
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState("");
+
     useEffect(() => {
         refresh();
+        api.get("/admin/clients").then((r) => setClients(r.data.filter((u) => !u.is_archived)));
+        api.get("/services/active").then((r) => setServices(r.data));
     }, [refresh]);
+
+    const createBookingOnDate = async (e) => {
+        e.preventDefault();
+        if (!selectedDate || !form.client_user_id || !form.package_id) return;
+        const pkg = services.packages.find((p) => p.package_id === form.package_id);
+        if (!pkg) return;
+        setBusy(true);
+        setErr("");
+        try {
+            await api.post("/bookings/admin", {
+                client_user_id: form.client_user_id,
+                package_id: pkg.package_id,
+                service_category: pkg.service_category,
+                preferred_date: selectedDate,
+                preferred_time: form.preferred_time,
+                duration_minutes: pkg.duration_minutes,
+                location_address: form.location_address,
+                suburb: form.suburb,
+                notes: form.notes,
+            });
+            setCreating(false);
+            setForm({
+                client_user_id: "",
+                package_id: "",
+                preferred_time: "10:00",
+                location_address: "Studio",
+                suburb: "Collingwood",
+                notes: "",
+            });
+            await refresh();
+        } catch (ex) {
+            setErr(ex.response?.data?.detail || "Could not create booking");
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const byDate = useMemo(() => {
         const m = {};
@@ -247,6 +299,7 @@ export default function AdminCalendar() {
                                 onClick={() => {
                                     setSelectedDate(null);
                                     setSelectedBookingId(null);
+                                    setCreating(false);
                                 }}
                                 className="p-1 hover:opacity-60"
                                 aria-label="Close"
@@ -255,6 +308,125 @@ export default function AdminCalendar() {
                                 <X size={20} strokeWidth={1.25} />
                             </button>
                         </div>
+
+                        <div className="px-6 pt-4">
+                            <button
+                                onClick={() => setCreating((v) => !v)}
+                                className="text-xs uppercase tracking-[0.3em] bg-foreground text-background px-4 py-2 inline-flex items-center gap-2"
+                                data-testid="cal-new-booking-btn"
+                            >
+                                <Plus size={14} strokeWidth={1.5} />
+                                {creating ? "Cancel" : "New booking on this date"}
+                            </button>
+                        </div>
+
+                        {creating && (
+                            <form
+                                onSubmit={createBookingOnDate}
+                                className="p-6 space-y-4 border-b border-border"
+                                data-testid="cal-new-booking-form"
+                            >
+                                <div>
+                                    <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                        Client
+                                    </label>
+                                    <select
+                                        value={form.client_user_id}
+                                        onChange={(e) => setForm({ ...form, client_user_id: e.target.value })}
+                                        required
+                                        className="w-full bg-transparent border-b border-foreground py-2 mt-1"
+                                        data-testid="cal-new-client"
+                                    >
+                                        <option value="">Select client…</option>
+                                        {clients.map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name || c.email}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                        Package
+                                    </label>
+                                    <select
+                                        value={form.package_id}
+                                        onChange={(e) => setForm({ ...form, package_id: e.target.value })}
+                                        required
+                                        className="w-full bg-transparent border-b border-foreground py-2 mt-1"
+                                        data-testid="cal-new-package"
+                                    >
+                                        <option value="">Select package…</option>
+                                        {services.packages.map((p) => (
+                                            <option key={p.package_id} value={p.package_id}>
+                                                {p.package_name} · {p.duration_minutes} min · AUD {p.base_price.toFixed(0)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                            Start time
+                                        </label>
+                                        <input
+                                            value={form.preferred_time}
+                                            onChange={(e) => setForm({ ...form, preferred_time: e.target.value })}
+                                            placeholder="14:30"
+                                            className="w-full bg-transparent border-b border-foreground py-2 mt-1"
+                                            data-testid="cal-new-time"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                            Suburb
+                                        </label>
+                                        <input
+                                            value={form.suburb}
+                                            onChange={(e) => setForm({ ...form, suburb: e.target.value })}
+                                            className="w-full bg-transparent border-b border-foreground py-2 mt-1"
+                                            data-testid="cal-new-suburb"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                        Location
+                                    </label>
+                                    <input
+                                        value={form.location_address}
+                                        onChange={(e) => setForm({ ...form, location_address: e.target.value })}
+                                        className="w-full bg-transparent border-b border-foreground py-2 mt-1"
+                                        data-testid="cal-new-location"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                                        Notes
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        value={form.notes}
+                                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                                        className="w-full bg-transparent border border-border p-2 mt-1"
+                                        data-testid="cal-new-notes"
+                                    />
+                                </div>
+                                {err && (
+                                    <p className="text-sm text-destructive" data-testid="cal-new-booking-error">
+                                        {err}
+                                    </p>
+                                )}
+                                <button
+                                    type="submit"
+                                    disabled={busy}
+                                    className="bg-foreground text-background text-xs uppercase tracking-[0.3em] px-6 py-3 disabled:opacity-50"
+                                    data-testid="cal-new-booking-submit"
+                                >
+                                    {busy ? "Saving…" : "Create booking (auto-confirmed)"}
+                                </button>
+                            </form>
+                        )}
 
                         {dayBookings.length === 0 ? (
                             <p className="p-6 text-sm text-muted-foreground">
