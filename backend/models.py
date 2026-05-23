@@ -106,6 +106,15 @@ class GalleryIn(BaseModel):
     title: str
     client_user_id: str
     description: Optional[str] = ""
+    booking_id: Optional[str] = None
+    allow_downloads: bool = False
+
+
+class GalleryPatchIn(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    booking_id: Optional[str] = None
+    allow_downloads: Optional[bool] = None
 
 
 class PhotoMeta(BaseModel):
@@ -124,6 +133,14 @@ class GalleryOut(BaseModel):
     cover_blob_id: Optional[str] = None
     photo_count: int = 0
     created_at: str
+    booking_id: Optional[str] = None
+    allow_downloads: bool = False
+    # Display metadata (populated by the route when available)
+    client_name: Optional[str] = None
+    client_email: Optional[str] = None
+    package_name: Optional[str] = None
+    booking_date: Optional[str] = None
+    invoice_reference: Optional[str] = None
 
 
 # --- Documents ---
