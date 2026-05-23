@@ -91,18 +91,37 @@ async def _send(to: str, subject: str, html: str, tag: str, channel: str = "noti
         return
     if not to:
         return
+    resend.api_key = os.environ["RESEND_API_KEY"]
+
+    primary_from = _from_addr(channel)
+    fallback_from = f"{os.environ.get('MAIL_FROM_NAME', _BRAND)} <studio@illuminatestudios.com.au>"
+
+    async def _try(from_addr: str) -> Optional[dict]:
+        params = {"from": from_addr, "to": [to], "subject": subject, "html": html}
+        return await asyncio.to_thread(resend.Emails.send, params)
+
+    # Try the task-specific subdomain first; if Resend refuses (subdomain not yet
+    # verified, key not scoped to it), fall back to the verified apex sender so the
+    # email still goes out and the studio doesn't lose a notification.
     try:
-        resend.api_key = os.environ["RESEND_API_KEY"]
-        params = {
-            "from": _from_addr(channel),
-            "to": [to],
-            "subject": subject,
-            "html": html,
-        }
-        result = await asyncio.to_thread(resend.Emails.send, params)
-        log.info("[email:%s] sent to %s id=%s", tag, to, result.get("id") if isinstance(result, dict) else result)
+        result = await _try(primary_from)
+        log.info("[email:%s] sent from=%s to=%s id=%s", tag, primary_from, to,
+                 result.get("id") if isinstance(result, dict) else result)
+        return
     except Exception as exc:
-        # NEVER raise — email is best-effort.
+        msg = str(exc)
+        if "not authorized" in msg.lower() or "verify a domain" in msg.lower() or "domain is not verified" in msg.lower():
+            log.warning("[email:%s] primary sender %s rejected (%s) — retrying from apex",
+                        tag, primary_from, msg.splitlines()[0][:160])
+            try:
+                result = await _try(fallback_from)
+                log.info("[email:%s] sent (fallback apex) from=%s to=%s id=%s",
+                         tag, fallback_from, to,
+                         result.get("id") if isinstance(result, dict) else result)
+                return
+            except Exception as exc2:
+                log.exception("[email:%s] fallback also failed → %s : %s", tag, to, exc2)
+                return
         log.exception("[email:%s] failed → %s : %s", tag, to, exc)
 
 
