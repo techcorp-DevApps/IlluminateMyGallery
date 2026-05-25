@@ -4,8 +4,16 @@ export const useGalleryStore = create((set) => ({
     lightsOut: false,
     activePhoto: null, // { id, blob_id, filename, ... }
     photos: [], // current viewing context
-    openViewer: (photos, idx) => set({ lightsOut: true, photos, activePhoto: photos[idx] || null }),
-    closeViewer: () => set({ lightsOut: false, activePhoto: null, photos: [] }),
+    allowDownloads: false,
+    openViewer: (photos, idx, opts = {}) =>
+        set({
+            lightsOut: true,
+            photos,
+            activePhoto: photos[idx] || null,
+            allowDownloads: !!opts.allowDownloads,
+        }),
+    closeViewer: () =>
+        set({ lightsOut: false, activePhoto: null, photos: [], allowDownloads: false }),
     next: () =>
         set((s) => {
             if (!s.photos.length || !s.activePhoto) return s;

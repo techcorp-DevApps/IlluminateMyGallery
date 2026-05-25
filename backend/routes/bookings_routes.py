@@ -81,6 +81,16 @@ async def all_bookings(_: dict = Depends(get_current_admin)):
     return rows
 
 
+@router.get("/{booking_id}", response_model=BookingOut)
+async def get_booking(booking_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if user.get("role") != "admin" and doc.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return doc
+
+
 @router.patch("/{booking_id}/status", response_model=BookingOut)
 async def change_status(booking_id: str, status: str, _: dict = Depends(get_current_admin)):
     if status not in {"pending", "approved", "rejected", "completed"}:

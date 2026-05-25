@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
 import { X, Plus } from "lucide-react";
+import InvoiceDrawer from "../components/InvoiceDrawer";
 
 const STATUS_LABEL = {
     pending: "Pending",
@@ -15,6 +16,7 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
     const [edits, setEdits] = useState(null);
     const [busy, setBusy] = useState(false);
     const [sendingTemplate, setSendingTemplate] = useState("");
+    const [activeInvoiceId, setActiveInvoiceId] = useState(null);
 
     const reload = useCallback(async () => {
         const { data } = await api.get(`/admin/clients/${clientId}`);
@@ -66,15 +68,10 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
     };
 
     const issueInvoiceFromBooking = async (bookingId) => {
-        await api.post(`/invoices/auto-from-booking/${bookingId}`);
+        const { data } = await api.post(`/invoices/auto-from-booking/${bookingId}`);
         await reload();
         onChange?.();
-    };
-
-    const markPaid = async (invoiceId) => {
-        await api.post(`/invoices/${invoiceId}/mark-paid`);
-        await reload();
-        onChange?.();
+        setActiveInvoiceId(data.id);
     };
 
     const c = profile.client;
@@ -120,6 +117,7 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
                 {[
                     ["overview", "Overview & notes"],
                     ["bookings", `Bookings (${profile.bookings.length})`],
+                    ["galleries", `Galleries (${profile.galleries.length})`],
                     ["documents", `Documents (${profile.documents.length})`],
                     ["invoices", `Invoices (${profile.invoices.length})`],
                     ["actions", "Quick actions"],
@@ -238,6 +236,62 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
                     </div>
                 )}
 
+                {tab === "galleries" && (
+                    <div className="space-y-3" data-testid="client-profile-galleries">
+                        {profile.galleries.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                                No galleries delivered yet.{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onClose?.();
+                                        window.location.assign("/admin/galleries");
+                                    }}
+                                    className="underline"
+                                    data-testid="client-profile-go-galleries"
+                                >
+                                    Create one →
+                                </button>
+                            </p>
+                        ) : (
+                            profile.galleries.map((g) => (
+                                <a
+                                    key={g.id}
+                                    href={`/admin/galleries?gallery=${g.id}`}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onClose?.();
+                                        window.location.assign(`/admin/galleries?gallery=${g.id}`);
+                                    }}
+                                    className="block border border-border p-4 hover:border-foreground transition-colors"
+                                    data-testid={`client-gallery-${g.id}`}
+                                >
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div>
+                                            <p className="font-display text-xl">{g.title}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {g.photo_count} photos
+                                                {g.created_at && (
+                                                    <> · delivered {new Date(g.created_at).toLocaleDateString()}</>
+                                                )}
+                                            </p>
+                                        </div>
+                                        <span
+                                            className={`text-[10px] uppercase tracking-[0.3em] border px-2 py-1 whitespace-nowrap ${
+                                                g.allow_downloads
+                                                    ? "border-foreground bg-foreground text-background"
+                                                    : "border-border"
+                                            }`}
+                                        >
+                                            {g.allow_downloads ? "Downloads on" : "Preview only"}
+                                        </span>
+                                    </div>
+                                </a>
+                            ))
+                        )}
+                    </div>
+                )}
+
                 {tab === "documents" && (
                     <div className="space-y-3" data-testid="client-profile-documents">
                         {profile.documents.length === 0 ? (
@@ -272,7 +326,13 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
                             <p className="text-muted-foreground text-sm">No invoices issued yet.</p>
                         ) : (
                             profile.invoices.map((inv) => (
-                                <div key={inv.id} className="border border-border p-4 flex justify-between items-center">
+                                <button
+                                    type="button"
+                                    key={inv.id}
+                                    onClick={() => setActiveInvoiceId(inv.id)}
+                                    className="w-full text-left border border-border p-4 flex justify-between items-center hover:bg-muted/40 transition-colors"
+                                    data-testid={`client-invoice-row-${inv.id}`}
+                                >
                                     <div>
                                         <p className="font-mono-ui text-xs">{inv.reference}</p>
                                         <p className="font-display text-lg">{inv.title}</p>
@@ -280,27 +340,16 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
                                             {inv.currency} {inv.amount.toFixed(2)}
                                         </p>
                                     </div>
-                                    <div className="text-right space-y-1">
-                                        <span
-                                            className={`text-[10px] uppercase tracking-[0.3em] border px-2 py-1 inline-block ${
-                                                inv.status === "paid"
-                                                    ? "border-foreground bg-foreground text-background"
-                                                    : "border-border"
-                                            }`}
-                                        >
-                                            {inv.status}
-                                        </span>
-                                        {inv.status !== "paid" && (
-                                            <button
-                                                onClick={() => markPaid(inv.id)}
-                                                className="block text-[10px] uppercase tracking-[0.3em] border border-foreground px-2 py-1"
-                                                data-testid={`client-invoice-paid-${inv.id}`}
-                                            >
-                                                Mark paid
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                    <span
+                                        className={`text-[10px] uppercase tracking-[0.3em] border px-2 py-1 inline-block ${
+                                            inv.status === "paid"
+                                                ? "border-foreground bg-foreground text-background"
+                                                : "border-border"
+                                        }`}
+                                    >
+                                        {inv.status}
+                                    </span>
+                                </button>
                             ))
                         )}
                     </div>
@@ -336,6 +385,17 @@ function ProfileDrawer({ clientId, onClose, onChange, templates }) {
                     </div>
                 )}
             </div>
+            {activeInvoiceId && (
+                <InvoiceDrawer
+                    invoiceId={activeInvoiceId}
+                    onClose={() => setActiveInvoiceId(null)}
+                    isAdmin
+                    onChanged={() => {
+                        reload();
+                        onChange?.();
+                    }}
+                />
+            )}
         </aside>
     );
 }

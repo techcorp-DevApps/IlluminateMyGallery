@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 3 verification: 13/13 new backend tests pass and full admin UI flow passes. Backend: admin overview counts, services packages CRUD (create/update/delete + GET round-trip), addons create, galleries with booking_id + allow_downloads, gallery PATCH, cross-user gallery 403, photo /download gating (client 403 when allow_downloads=False; 200 for owning client when True; admin always 200), preview /photo always returns image for owner, bookings GET-by-id auth (admin any, owner ok, other-user 403), admin client profile galleries include allow_downloads, and the previously-failing GET /api/invoices/mine now returns 200. Frontend (admin, authed as admin@illuminatestudios.com.au): all 6 overview tiles render with data-testids, clicking pending tile navigates to /admin/bookings?status=pending, all four bookings filter buttons present, AdminServices shows 5 package cards with edit buttons that open prefilled admin-package-form, admin-addon-new-btn present, AdminInvoices shows 3 invoice rows and clicking opens invoice-drawer with PayID, BSB, INV-YYYY-NNNN reference all visible, AdminGalleries form has booking dropdown + allow_downloads checkbox, AdminCalendar loads without crash with 31 day cells and reveals cal-new-booking-btn after a day click, AdminClients profile drawer has client-profile-tab-galleries tab and clicking client-invoice-row-<id> in the Invoices tab successfully overlays invoice-drawer on top of the profile drawer.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/services/packages",
+        "issue": "ServicePackageModel silently accepts and discards unknown fields (e.g. `includes`) — admin UI may send extras that disappear. Consider adding extra='forbid' or documenting allowed fields."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminInvoices status filter <select>",
+        "issue": "React hydration warning: <span> rendered as a child of <option> at AdminInvoices line ~147 (option value renders a styled span via component instrumentation). Non-blocking but pollutes console.",
+        "selector": "[data-testid='admin-invoice-status-filter'] option",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration3_results.xml"
+  ],
+  "action_items": [
+    "Optional: silence the AdminInvoices <span> in <option> hydration warning (likely from a wrapper around dynamic option text).",
+    "Optional: tighten ServicePackageModel with extra='forbid' so admin UI doesn't lose silent fields."
+  ],
+  "critical_code_review_comments": [
+    "galleries_routes._enrich correctly returns photo_count, allow_downloads, client_name, package_name, booking_date, invoice_reference — matches GalleryOut model.",
+    "Cross-user gallery isolation is enforced both at GET /{id} (explicit role+owner check) and at /photo/{blob_id} (Mongo filter by client_user_id). Solid.",
+    "/photo/{blob_id}/download additionally checks allow_downloads — correct gating with friendly 403 message.",
+    "ProtectedImage frontend uses contextmenu prevention + draggable=false + CSS user-select / -webkit-touch-callout — best-effort image protection acknowledged by user.",
+    "AdminCalendar Plus icon import restored — page renders without crash; 31 day cells visible.",
+    "InvoiceDrawer overlays ProfileDrawer correctly via mounted-inside z-stacking — verified visually.",
+    "seed.py corruption resolved — service catalog seeded (5 packages, addons present in /api/services/active).",
+    "Optional improvement: GET /api/galleries/{id} could also return `photos` only when authorized — currently it does (after auth check). Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 iteration-3 tests)",
+    "frontend": "100% on tested admin flows (overview tiles, bookings filters, services edit, invoice drawer, gallery form, calendar, profile drawer with invoice overlay)"
+  },
+  "test_credentials": "Admin: admin@illuminatestudios.com.au / Illuminate2026!; Client: client@example.com / client123 — both working.",
+  "seed_data_creation": "Created TEST_GalIt3_* galleries (some with allow_downloads, some without) for the client during test runs; one TEST_other_<rand>@example.com user registered for cross-user 403 verification; one TEST_Pkg service package created and deleted; one TEST_Addon addon created and deleted. Galleries / extra user remain in DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iteration-3 features (overview tiles, bookings status filter, services CRUD, invoice slide-out drawer for both admin & customer-side rows, gallery booking_id + allow_downloads + cross-user 403 + download gating, admin client profile galleries tab, calendar Plus fix) are verified end-to-end. Customer-side UI for gallery preview-download blocking (right-click prevention, lights-out viewer download hidden when allowDownloads=false, gallery-download-disabled-notice) was not exercised in Playwright but backend gates are confirmed and ProtectedImage/LightsOutViewer code-review-passes; can be exercised next iteration if needed. Iteration 2's /api/invoices/mine 500 is fixed (returns 200 now).",
+  "rca_of_the_issue": "No new bugs requiring RCA. Iteration 2's invoices/mine 500 is resolved (test_client_mine_returns_200 passes)."
+}

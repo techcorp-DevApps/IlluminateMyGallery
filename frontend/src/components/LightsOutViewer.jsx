@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { useGalleryStore } from "../store/galleryStore";
 import { photoUrl, photoDownloadUrl } from "../lib/api";
-import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
+import ProtectedImage from "./ProtectedImage";
 
 export default function LightsOutViewer() {
-    const { lightsOut, activePhoto, photos, next, prev, closeViewer } = useGalleryStore();
+    const { lightsOut, activePhoto, photos, allowDownloads, next, prev, closeViewer } =
+        useGalleryStore();
 
     useEffect(() => {
         if (!lightsOut) return;
@@ -26,6 +28,7 @@ export default function LightsOutViewer() {
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center transition-all duration-500"
             style={{ background: "#050505" }}
+            onContextMenu={(e) => e.preventDefault()}
             data-testid="lights-out-viewer"
         >
             <button
@@ -37,7 +40,7 @@ export default function LightsOutViewer() {
                 <X size={28} strokeWidth={1.25} />
             </button>
 
-            {!isUrlPhoto && (
+            {!isUrlPhoto && allowDownloads && (
                 <a
                     href={photoDownloadUrl(activePhoto.blob_id)}
                     className="absolute top-6 left-6 text-white/70 hover:text-white p-2 flex items-center gap-2 text-xs uppercase tracking-[0.3em]"
@@ -46,6 +49,15 @@ export default function LightsOutViewer() {
                 >
                     <Download size={20} strokeWidth={1.25} /> Download
                 </a>
+            )}
+
+            {!isUrlPhoto && !allowDownloads && (
+                <div
+                    className="absolute top-6 left-6 text-white/40 p-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.3em]"
+                    data-testid="lights-out-no-download"
+                >
+                    <Lock size={14} strokeWidth={1.25} /> Preview only
+                </div>
             )}
 
             <button
@@ -57,11 +69,11 @@ export default function LightsOutViewer() {
                 <ChevronLeft size={36} strokeWidth={1.25} />
             </button>
 
-            <img
+            <ProtectedImage
                 src={src}
                 alt={activePhoto.filename || ""}
                 className="max-h-[88vh] max-w-[90vw] object-contain"
-                data-testid="lights-out-image"
+                testId="lights-out-image"
             />
 
             <button

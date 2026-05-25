@@ -1,6 +1,6 @@
 # Cloudflare R2 Setup — Step-by-Step for Illuminate Studios
 
-Cloudflare R2 is an S3-compatible object storage service with **zero egress fees**, which makes it the cheapest sensible choice for a photography studio (you read lots of large image files when clients view their galleries).
+Cloudflare R2 is an S3-compatible object storage serviche with **zero egress fees**, which makes it the cheapest sensible choice for a photography studio (you read lots of large image files when clients view their galleries).
 
 The Illuminate Studios backend reads four env vars and routes all photo storage through R2 automatically once they're set:
 
