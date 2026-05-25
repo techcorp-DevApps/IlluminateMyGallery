@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, photoUrl } from "../lib/api";
 import { Link } from "react-router-dom";
+import ProtectedImage from "../components/ProtectedImage";
 
 export default function CustomerGalleries() {
     const [items, setItems] = useState([]);
@@ -12,7 +13,9 @@ export default function CustomerGalleries() {
         return (
             <div className="border border-border p-12 text-center" data-testid="galleries-empty">
                 <p className="font-display text-3xl">Your delivered galleries will appear here.</p>
-                <p className="text-muted-foreground mt-3">The studio uploads your photos when they're ready.</p>
+                <p className="text-muted-foreground mt-3">
+                    The studio uploads your photos when they're ready.
+                </p>
             </div>
         );
     }
@@ -28,7 +31,7 @@ export default function CustomerGalleries() {
                 >
                     <div className="aspect-[4/5] bg-muted overflow-hidden">
                         {g.cover_blob_id ? (
-                            <img
+                            <ProtectedImage
                                 src={photoUrl(g.cover_blob_id)}
                                 alt={g.title}
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
@@ -40,9 +43,11 @@ export default function CustomerGalleries() {
                         )}
                     </div>
                     <p className="font-display text-2xl mt-3">{g.title}</p>
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                        {g.photo_count} photographs
-                    </p>
+                    <div className="mt-1 space-y-0.5 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                        <p>{g.photo_count} photographs</p>
+                        {g.package_name && <p>{g.package_name}</p>}
+                        {g.booking_date && <p>Session · {g.booking_date}</p>}
+                    </div>
                 </Link>
             ))}
         </div>

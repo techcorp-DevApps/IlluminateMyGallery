@@ -96,7 +96,13 @@ async def get_client_profile(client_id: str, _: dict = Depends(get_current_admin
         arr.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     # Galleries — strip embedded photos array from list view, just return count
     galleries = [
-        {**g, "photo_count": len(g.get("photos", [])), "photos": None} for g in galleries
+        {
+            **g,
+            "photo_count": len(g.get("photos", [])),
+            "photos": None,
+            "allow_downloads": bool(g.get("allow_downloads", False)),
+        }
+        for g in galleries
     ]
     return {
         "client": client,
