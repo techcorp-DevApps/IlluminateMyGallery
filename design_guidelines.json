@@ -1,151 +1,274 @@
 {
-  "project_name": "Photography Management Application",
+  "project_name": "Illuminate Studios — Photography Management Application",
+  "_source_of_truth": "tokens.ts (primitives + semantic themes) and styles.css (CSS custom properties). This JSON mirrors them; do not diverge.",
   "theme": {
     "primary_mode": "light",
     "secondary_mode": "dark",
-    "archetype": "Custom Editorial (Base: Swiss Brutalist + Jewel/Luxury typography)",
-    "vibe": "Elegant, editorial, high-end magazine, unobtrusive but premium."
+    "archetype": "Editorial luxury — brass gold + cool navy ink on cool off-white; cinematic black + cream + gold for the immersive gallery viewer.",
+    "vibe": "Hand-set magazine spread meets jeweller's loupe. Quiet, generous, expensive. Sharp edges, thin gold rules, serif drama against neutral UI body type."
   },
   "colors": {
     "light_mode": {
-      "background": "#F9F9F7",
-      "foreground": "#1A1A1A",
-      "surface": "#FFFFFF",
-      "border": "#E5E3DB",
-      "primary": "#1A1A1A",
-      "primary_foreground": "#FFFFFF",
-      "muted": "#F0EFEB",
-      "muted_foreground": "#73716A",
-      "accent": "#E5E3DB",
-      "accent_foreground": "#1A1A1A",
-      "danger": "#8C2A2A"
+      "background": "#fafbfc",
+      "foreground": "#0e1730",
+      "surface_raised": "#ffffff",
+      "surface_inset": "#f1f4f7",
+      "surface_accent": "#e1e7ed",
+      "border_subtle": "#e1e7ed",
+      "border_default": "#c4cdd6",
+      "border_strong": "#8a96a3",
+      "border_gold": "#a8884f",
+      "primary_ink": "#0e1730",
+      "ink_secondary": "#34405a",
+      "ink_tertiary": "#5a6378",
+      "ink_disabled": "#aab1be",
+      "ink_inverse": "#fdf8ee",
+      "brand_gold": "#a8884f",
+      "brand_gold_hover": "#b89868",
+      "brand_gold_muted": "rgba(168,136,79,0.12)",
+      "sage_accent": "#828d72",
+      "scrim": "rgba(14,23,48,0.55)"
     },
     "dark_mode": {
-      "description": "Used EXCLUSIVELY for the immersive lights-out gallery viewer.",
-      "background": "#050505",
-      "foreground": "#FAFAFA",
-      "surface": "#111111",
-      "border": "#222222",
-      "primary": "#FFFFFF",
-      "primary_foreground": "#000000",
-      "muted": "#1A1A1A",
-      "muted_foreground": "#A1A1AA"
+      "description": "Used EXCLUSIVELY for the immersive lights-out gallery viewer AND any 'cinematic' surfaces (hero, contract cover, presentation mode).",
+      "background": "#0a0a0a",
+      "foreground": "#f4ebd9",
+      "surface_raised": "#141414",
+      "surface_elevated": "#0f0f0f",
+      "surface_inset": "#1c1c1c",
+      "border_subtle": "#242424",
+      "border_default": "#2e2e2e",
+      "border_strong": "#3a3a3a",
+      "border_gold": "#a8884f",
+      "primary_ink": "#f4ebd9",
+      "ink_secondary": "#c9b896",
+      "ink_tertiary": "#8a8275",
+      "brand_gold": "#c9a96e",
+      "brand_gold_hover": "#e8d5a6",
+      "brand_gold_muted": "rgba(201,169,110,0.15)",
+      "scrim": "rgba(0,0,0,0.85)"
+    },
+    "status": {
+      "success": "#7a9b6e",
+      "danger":  "#b86a5b",
+      "info":    "#8aa3b8",
+      "warning": "#d4a356"
+    },
+    "gradients": {
+      "gold_text_light": "linear-gradient(180deg, #b89868 0%, #a8884f 50%, #5a481f 100%)",
+      "gold_text_dark":  "linear-gradient(180deg, #f0dba8 0%, #c9a96e 45%, #8a6f3e 100%)",
+      "gold_fill_light": "radial-gradient(120% 80% at 30% 30%, rgba(255,235,190,0.5), transparent 60%), linear-gradient(135deg, #d4b87a 0%, #a8884f 50%, #5a481f 100%)",
+      "gold_fill_dark":  "radial-gradient(120% 80% at 30% 30%, rgba(255,235,190,0.4), transparent 60%), linear-gradient(135deg, #e8d5a6 0%, #c9a96e 40%, #8a6f3e 100%)"
     },
     "rules": [
-      "Never use pure #000000 or #FFFFFF except in the dark gallery mode.",
-      "No gradients. UI must feel like printed paper and sharp ink.",
-      "Rely on 1px solid borders for separation, not shadows."
+      "Never invent new hues. Pick from the gold / navy / cream / sage / paper / ink ramps in tokens.ts.",
+      "Pure #000 and #FFF are reserved: #000 never appears (use Ink 0 #050505); #FFF only as Paper 100 card surface in light mode.",
+      "Gold is the ONLY brand accent. Sage is a secondary tint, used sparingly (status pills, calendar today-dot, soft tags).",
+      "Gradients are permitted but limited to the two gold treatments above — for headlines (.gold-text) and brand chips/medallions (.gold-fill). No UI-chrome gradients.",
+      "1px hairlines do most separation work; the .hairline and .hairline-gold utilities fade to transparent at the ends.",
+      "Shadows are allowed but quiet — see elevation table. Never use elevation as decoration; only for true overlays (modal, popover, sticky topbar on scroll)."
     ]
   },
   "typography": {
     "fonts": {
-      "headings": "Cormorant Garamond",
-      "body": "Manrope",
-      "mono": "JetBrains Mono"
+      "display": "\"Cinzel\", \"Trajan Pro\", Georgia, serif",
+      "serif":   "\"Cormorant Garamond\", \"EB Garamond\", Georgia, serif",
+      "body":    "\"Inter\", system-ui, -apple-system, sans-serif",
+      "mono":    "\"JetBrains Mono\", ui-monospace, monospace"
     },
-    "scales": {
-      "h1": "text-5xl sm:text-6xl lg:text-7xl font-light tracking-tighter leading-none",
-      "h2": "text-4xl sm:text-5xl font-light tracking-tight leading-tight",
-      "h3": "text-2xl sm:text-3xl font-normal tracking-tight",
-      "h4": "text-xl font-medium",
-      "body": "text-base leading-relaxed tracking-normal",
-      "overline": "text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+    "scale_px": {
+      "xs": 10, "sm": 12, "base": 14, "md": 16, "lg": 18, "xl": 22,
+      "2xl": 28, "3xl": 36, "4xl": 48, "5xl": 64, "6xl": 88
+    },
+    "weights": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 },
+    "leading": { "tight": 1.15, "snug": 1.3, "normal": 1.55, "relaxed": 1.7 },
+    "tracking_em": { "tight": -0.01, "normal": 0, "wide": 0.08, "wider": 0.24, "widest": 0.32 },
+    "roles": {
+      "display": "Cinzel, regular, uppercase, tracking 0.08em — wordmark, hero medallions, section overlines on cinematic surfaces. NEVER for body or UI labels.",
+      "h1_editorial": "Cormorant Garamond, weight 400, size 5xl–6xl, leading tight, tracking -0.01em. Use for marketing covers, gallery titles, contract titles.",
+      "h2_editorial": "Cormorant Garamond, weight 400 (or italic 400 for emphasis), size 4xl, leading snug, tracking -0.01em.",
+      "h3_ui":   "Inter semibold, 22px, leading snug — dashboard section heads.",
+      "h4_ui":   "Inter medium, 18px — card titles, modal headings.",
+      "body":    "Inter regular, 14–16px, leading normal — all functional UI, dashboards, forms.",
+      "body_long": "Cormorant Garamond regular, 18–22px, leading relaxed — contract bodies, long-form editorial copy.",
+      "eyebrow": "Inter medium, 11px, tracking 0.32em, uppercase, color brand_gold — section labels.",
+      "label_sm": "Inter medium, 11px, tracking 0.2em, uppercase, color ink_tertiary — form labels, table headers.",
+      "mono":    "JetBrains Mono regular, 12–14px — IDs, file paths, timestamps, EXIF, kbd."
     },
     "rules": [
-      "Use Cormorant Garamond exclusively for dramatic, large text (H1, H2, Quotes, Contract Titles).",
-      "Use Manrope for all UI elements, dashboards, forms, and functional text.",
-      "Never center-align large paragraphs. Center-align H1 only if part of a symmetric cover page, otherwise left-align.",
-      "Use extremely tight letter spacing on large serif headings."
+      "Three font families on any one page MAX. Display (Cinzel) is optional; default is serif + body + mono.",
+      "Cormorant Garamond italic is the 'pull quote' / 'editor's note' voice — use sparingly, never for whole paragraphs.",
+      "Tabular numerals (font-feature-settings: 'tnum','lnum') are mandatory in tables, invoice rows, and dashboards (.numeric utility).",
+      "Never center-align long paragraphs. Center H1 only on symmetric cover layouts (marketing hero, contract cover, lights-out caption).",
+      "Use extremely tight letter spacing (-0.01em) on serif headings; very wide tracking (0.2–0.32em) on uppercase labels."
     ]
   },
   "spacing_and_layout": {
+    "scale_px": { "s1": 4, "s2": 8, "s3": 12, "s4": 16, "s5": 24, "s6": 32, "s7": 48, "s8": 64, "s9": 96, "s10": 128 },
+    "container": { "max_width_px": 1440, "horizontal_padding": "var(--s-7) (48px)" },
+    "chrome": { "nav_width_px": 280, "topbar_height_px": 72 },
     "generous_spacing": true,
-    "container_padding": "p-6 md:p-12 lg:p-24",
     "grid_modes": {
-      "marketing": {
-        "description": "The Tetris Grid",
-        "classes": "grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-16",
-        "rules": "Asymmetric, overlapping elements. Leave empty cells for negative space."
+      "marketing_editorial": {
+        "description": "Editorial 12-col with intentional negative space — hero, portfolio, about, pricing.",
+        "classes": "grid grid-cols-12 gap-6 md:gap-8",
+        "rules": "Asymmetric. Allow images to break a column boundary. Leave 1–2 empty cells per row for breathing room. Pair serif headlines with mono captions."
       },
-      "dashboard": {
-        "description": "The Control Room Grid",
+      "dashboard_control_room": {
+        "description": "Strict aligned grid for admin/client portals.",
         "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
-        "rules": "Dense, functional, strict alignment. 1px borders between widgets."
+        "rules": "1px hairline borders between widgets, no shadows. Right-align numerics. Sticky 72px topbar."
+      },
+      "gallery_mosaic": {
+        "description": "Masonry / 12-col mixed-aspect image grid for client galleries.",
+        "rules": "Use natural image aspect ratios; gap 16–24px; click → lights-out viewer."
       }
     },
-    "surfaces": "Grid Borders style. Expose the skeleton. Use border-collapse style layouts with sharp 0px border-radius (or max 2px). NO glassmorphism. NO drop shadows."
+    "surfaces": "Expose the skeleton. Sharp corners (0–4px). 1px solid borders carry separation; shadows reserved for true overlays."
+  },
+  "radii_px": { "none": 0, "xs": 2, "sm": 4, "md": 8, "lg": 16, "full": 9999 },
+  "elevation": {
+    "sm": "0 1px 2px rgba(20,30,50,0.06) (light)  |  0 1px 2px rgba(0,0,0,0.5) (dark)",
+    "md": "0 4px 16px rgba(20,30,50,0.08), 0 1px 2px rgba(20,30,50,0.05) (light)  |  0 10px 30px rgba(0,0,0,0.5) (dark)",
+    "lg": "0 24px 50px rgba(20,30,50,0.12), 0 4px 12px rgba(20,30,50,0.06) (light)  |  0 30px 60px rgba(0,0,0,0.65) (dark)",
+    "gold": "0 0 0 1px rgba(168,136,79,0.28), 0 12px 30px rgba(168,136,79,0.12) — used to halo featured cards and primary CTA hover."
+  },
+  "motion": {
+    "easing": {
+      "out":    "cubic-bezier(0.16, 1, 0.3, 1)",
+      "in_out": "cubic-bezier(0.65, 0, 0.35, 1)"
+    },
+    "duration_ms": { "fast": 180, "medium": 340, "slow": 700 },
+    "rules": [
+      "Micro-interactions (hover, focus) use fast (180ms) ease-out.",
+      "Modal rise, page transitions use medium (340ms).",
+      "Lights-out enter/exit and hero fades use slow (700ms) ease-in-out — cinematic.",
+      "No bouncy springs. No parallax. Subtle Y-translate (4–8px) on hover for primary CTA only.",
+      "Focus state: 1px gold ring (border-color: var(--gold-400)) — not a glow.",
+      "Respect prefers-reduced-motion: collapse to opacity-only fades."
+    ]
   },
   "components": {
-    "buttons": "Square or extremely subtle rounding (rounded-sm). Solid black (primary) or transparent with 1px black border (outline). Hover states invert or change opacity slightly.",
-    "cards": "Flat. 1px solid border. No shadow. Background matches parent or slightly offset (Surface color).",
-    "inputs": "Shadcn defaults but remove border-radius. Use bottom-border only (flushed) for a printed form look in marketing, or full sharp box in the dashboard.",
-    "dialogs": "Sharp corners, stark contrast, dimmed solid black backdrop (bg-black/80) instead of blurred.",
-    "navigation": "Header must have solid background (bg-background) or a sharp bottom border to separate from hero. Not transparent."
-  },
-  "motion_and_interactions": {
-    "rules": [
-      "Micro-interactions only for standard UI (hover states, focus rings).",
-      "Use framer-motion for smooth staggered fade-ins on the marketing page.",
-      "Image Gallery transition must be slow and cinematic (e.g., 0.6s ease-in-out) fading everything to black.",
-      "Focus states: ring-1 ring-offset-2 ring-primary sharp."
-    ]
-  },
-  "page_specific_instructions": {
-    "lights_out_gallery": [
-      "CRITICAL FEATURE: When a user clicks on an image in a gallery, activate 'Lights-Out' mode.",
-      "Implementation: Use global state (Zustand/Context). When active, hide the main Navbar and Footer. Change body background to #050505.",
-      "UI: Only show the high-res image, minimal left/right arrows (thin stroke icons), and a subtle 'Close' icon (X) in the top right.",
-      "No text or descriptions should be visible unless explicitly hovered."
-    ],
-    "contract_viewer": [
-      "Design like a physical piece of A4 paper. Center a white #FFFFFF container with max-w-3xl on a muted grey background.",
-      "Use serif typography for the contract body.",
-      "Signature block should use a script-style font if typed, or an elegant canvas block if drawn."
-    ],
-    "booking_flow": [
-      "Clean, sequential step-by-step layout.",
-      "Use Shadcn Calendar component but stylize it with sharp corners and serif month headers."
-    ]
-  },
-  "assets": {
+    "buttons": {
+      "shape": "border-radius var(--r-xs) (2px) — almost square.",
+      "size_base": "padding 14px 28px, font-size 12px, tracking 0.24em, uppercase, Inter medium.",
+      "size_sm":   "padding 9px 18px, font-size 11px, tracking 0.18em.",
+      "size_lg":   "padding 18px 40px, font-size 13px.",
+      "variants": {
+        "primary":      "bg var(--gold-300), color var(--ink-inverse) #fdf8ee. Hover: bg gold-200, translateY(-1px), subtle gold shadow.",
+        "ghost":        "transparent, 1px border var(--ink-500), text foreground. Hover: border + text → gold-300.",
+        "outline_gold": "transparent, 1px border var(--gold-400), text gold-300. Hover: fill gold-300 with inverse text."
+      }
+    },
+    "inputs": {
+      "shape": "var(--r-xs) (2px) sharp box. Full bordered form for dashboard; underline-only treatment optional for marketing forms.",
+      "default": "bg var(--ink-100), 1px border var(--ink-400), padding 12px 14px, font-size 14px.",
+      "focus":   "border-color var(--gold-400). No glow, no ring offset.",
+      "label":   ".field-label — 10px, tracking 0.24em, uppercase, color ink_tertiary, margin-bottom 8px.",
+      "placeholder": "color var(--bone-400) (ink_disabled)."
+    },
+    "cards": {
+      "default":  "bg var(--ink-100), 1px border var(--ink-400), radius var(--r-sm) (4px), padding s5 (24px). No shadow.",
+      "elevated": "Adds shadow-md. Reserve for floating widgets and sticky panels.",
+      "gold":     "1px border var(--gold-400) + shadow-gold. Reserve for featured/CTA cards (e.g. recommended pricing tier, signed contract confirmation)."
+    },
+    "badges": {
+      "shape": "border-radius 2px, 4px×10px padding, 10px uppercase tracking 0.2em, Inter medium.",
+      "variants": ["gold", "success", "info", "muted", "sage"]
+    },
+    "dialogs": {
+      "scrim": "var(--scrim) — navy-tinted in light (rgba(14,23,48,0.55)), pitch black in dark (rgba(0,0,0,0.85)). Subtle 16px backdrop-blur is permitted (matches existing .modal-overlay).",
+      "card":  "bg ink-050, 1px gold border, radius var(--r-sm), padding s8 (64px), shadow-lg, rise animation."
+    },
+    "navigation": {
+      "sidebar":  "280px wide, solid surface, vertical, with gold hairline accents on active item.",
+      "topbar":   "72px high, solid bg-canvas, 1px bottom hairline. NEVER transparent over content.",
+      "marketing_nav": "Solid background OR strong 1px bottom border once scrolled. No glass."
+    },
+    "tables": "Sharp 1px hairlines. Header in label_sm style (uppercase, tracking 0.2em, ink_tertiary). Rows in body type, tabular numerals. Zebra striping uses surface_inset, not opacity.",
     "icons": {
       "library": "lucide-react",
       "stroke_width": 1.25,
-      "usage": "Use thin, elegant variants of icons."
-    },
-    "image_urls": {
-      "hero_fashion": {
-        "description": "Use for the main landing page hero background or prominent portfolio display.",
-        "urls": [
-          "https://images.unsplash.com/photo-1648046016726-9260b555902b",
-          "https://images.unsplash.com/photo-1660018322139-0e58555df00d",
-          "https://images.pexels.com/photos/13899406/pexels-photo-13899406.jpeg"
-        ]
-      },
-      "wedding_client": {
-        "description": "Use as placeholders for the client gallery preview, booking sections, or customer dashboard.",
-        "urls": [
-          "https://images.unsplash.com/photo-1520854221256-17451cc331bf",
-          "https://images.pexels.com/photos/35448448/pexels-photo-35448448.jpeg"
-        ]
-      },
-      "portraits_bw": {
-        "description": "Use for aesthetic fill, photographer bio picture, or generic portfolio items.",
-        "urls": [
-          "https://images.unsplash.com/photo-1541519481457-763224276691",
-          "https://images.pexels.com/photos/11607515/pexels-photo-11607515.jpeg"
-        ]
-      }
+      "size_default_px": 18,
+      "color": "Currentcolor; gold only when icon represents a brand/premium action."
     }
   },
-  "instructions_to_main_agent": [
-    "1. Initialize Tailwind with the provided color hexes in tailwind.config.js.",
-    "2. Import Google Fonts 'Cormorant Garamond' and 'Manrope' in index.css.",
-    "3. Set up Shadcn UI but aggressively remove default border-radiuses (rounded-md -> rounded-none or rounded-sm) to match the editorial sharp look.",
-    "4. Build a global Zustand store (`useGalleryStore`) to manage `isLightsOutMode`. Wrap the main layout to conditionally render Nav/Footer based on this state.",
-    "5. Ensure ALL interactive elements (buttons, inputs, gallery images) have a `data-testid` attribute using kebab-case role-based naming.",
-    "6. Use the provided image URLs exclusively for media. DO NOT use placeholder text or dummy image generators.",
-    "7. Implement role-based routing (Admin vs User) and protect the routes.",
-    "8. E-signature component can just be an input that sets a stylized cursive font internally to mimic a signature."
+  "page_specific": {
+    "lights_out_gallery": [
+      "Trigger: click any image in a gallery view.",
+      "Implementation: global state flag (e.g. useGalleryStore.isLightsOut). When true, hide nav + footer, swap body to data-theme='dark', and use the dark palette above.",
+      "Body bg locks to var(--ink-050) (#0a0a0a). Image is full-bleed, fit-contain.",
+      "Chrome: thin-stroke (1.25) left/right chevrons and a top-right close (X) icon, all in cream-50 (#f4ebd9) at 60% opacity, full opacity on hover.",
+      "No captions or metadata visible by default. On hover (or 'i' key) reveal an editorial caption block: Cormorant Garamond regular, 18px, cream-50, max-width 480px, bottom-left, with a 1px gold hairline above.",
+      "Transition: 700ms ease-in-out. Fade Y-translate(8px). Background fades through scrim before settling on ink-050."
+    ],
+    "contract_viewer": [
+      "Page bg: var(--ink-200) (#f1f4f7, the inset surface) — looks like a desk.",
+      "Centered paper: pure #ffffff card, max-width 768px (~A4), 1px border ink-400, shadow-lg, padding s8.",
+      "Title: Cormorant Garamond, 5xl, tracking -0.01em, centered.",
+      "Body: Cormorant Garamond regular, 18px, leading relaxed, justified (CSS hyphens auto, text-wrap pretty).",
+      "Signature block: rendered in a 'script' fallback (e.g. \"Allura\", \"Caveat\", italic Cormorant 32px) above a 1px gold hairline, with mono date/IP/timestamp underneath."
+    ],
+    "booking_flow": [
+      "Sequential steps, one panel per step, with a thin gold progress ribbon above (4 ticks, current filled gold-300).",
+      "Calendar: sharp corners, Cormorant month header (3xl), Inter day labels (uppercase tracking 0.2em), gold-300 dot for today, filled gold-300 square for selected.",
+      "Summary rail (sticky right column on desktop): card-default with hairline rules between line items, totals in numeric tabular figures."
+    ],
+    "dashboard": [
+      "Use the Control Room grid. Topbar 72px, sidebar 280px.",
+      "Each widget: card-default with a label_sm eyebrow + numeric headline (Cormorant 4xl) + sparkline / micro chart in gold-300 stroke.",
+      "Status badges follow the badge token set; never invent inline colors."
+    ],
+    "marketing_hero": [
+      "Editorial grid. Cormorant 6xl headline left-aligned, max 8 cols. Cinzel display eyebrow above (gold).",
+      "Hero image is full-bleed in remaining 4 cols OR breaks below as a 12-col image strip.",
+      "Subtle film-grain overlay (.grain utility, 1.5% opacity in light, 4% in dark)."
+    ]
+  },
+  "assets": {
+    "logos": {
+      "banner_light_path": "assets/logo-banner-dark.png",
+      "banner_dark_path":  "assets/logo-banner-gold.png",
+      "lens_light_path":   "assets/lens-dark.png",
+      "lens_dark_path":    "assets/lens-gold.png",
+      "usage": "Banner = horizontal wordmark for nav/footer (height 32px). Lens = circular medallion (36×36) for favicons, splash, signature blocks. Both swap via the CSS var --logo-banner / --logo-lens based on data-theme."
+    },
+    "icons": {
+      "library": "lucide-react",
+      "stroke_width": 1.25,
+      "note": "Use thin/elegant variants only. Avoid filled icons except the lens medallion."
+    },
+    "imagery": {
+      "policy": "Photography app — imagery is the product. Use real Unsplash/Pexels photos already curated in earlier specs (fashion hero, wedding client, b&w portraits). NEVER ship hand-drawn SVG illustrations as content imagery. Placeholders (when needed during build) use the .ph-stripe utility with a mono caption.",
+      "treatment": "No filters, no overlays, no rounded corners (max var(--r-sm) 4px). Let photographs read at full fidelity."
+    },
+    "texture": {
+      "grain": ".grain — fixed full-viewport SVG noise overlay, opacity tracks --grain-opacity (1.5% light, 4% dark), mix-blend-mode overlay."
+    }
+  },
+  "css_var_contract": {
+    "_intent": "These are the exact custom property names component code reads from. Do not rename.",
+    "surfaces":   ["--ink-000","--ink-050","--ink-100","--ink-200","--ink-300","--ink-400","--ink-500","--ink-600"],
+    "ink":        ["--bone-050","--bone-100","--bone-200","--bone-300","--bone-400","--bone-500"],
+    "gold":       ["--gold-100","--gold-200","--gold-300","--gold-400","--gold-500"],
+    "sage":       ["--sage-100","--sage-200","--sage-300","--sage-400","--sage-500"],
+    "fonts":      ["--font-display","--font-serif","--font-body","--font-mono"],
+    "spacing":    ["--s-1","--s-2","--s-3","--s-4","--s-5","--s-6","--s-7","--s-8","--s-9","--s-10"],
+    "radii":      ["--r-none","--r-xs","--r-sm","--r-md","--r-lg","--r-full"],
+    "motion":     ["--ease-out","--ease-in-out","--dur-fast","--dur-med","--dur-slow"],
+    "chrome":     ["--nav-w","--topbar-h"],
+    "shadows":    ["--shadow-sm","--shadow-md","--shadow-lg","--shadow-gold"],
+    "gradients":  ["--gold-text-grad","--gold-fill-grad"],
+    "scrim":      ["--scrim"],
+    "logo":       ["--logo-banner","--logo-lens"]
+  },
+  "implementation_notes": [
+    "1. Tokens live in tokens.ts (platform-agnostic, importable by web + RN). styles.css mirrors them into CSS custom properties scoped by [data-theme='light'|'dark'].",
+    "2. Two themes only: 'light' (default UI) and 'dark' (immersive viewer + cinematic surfaces). Theme is set on <html data-theme>; body transitions bg/color in 400ms.",
+    "3. All interactive elements should keep their `data-testid` attribute, kebab-case, role-based.",
+    "4. Use the existing utility classes from styles.css (.btn, .btn-primary, .card, .badge-gold, .hairline, .eyebrow, .gold-text, .ph-stripe, .grain, .logo-banner-img, .logo-lens-img) instead of re-rolling Tailwind one-offs.",
+    "5. Lights-out is global state — wrap layout to conditionally hide nav/footer and swap data-theme to 'dark' for the duration.",
+    "6. Role-based routing (Admin / Client) protects portal screens; marketing is public.",
+    "7. E-signature: a single underline input that sets font-family to a script fallback (italic Cormorant Garamond 32px) on focus/commit."
   ]
 }
