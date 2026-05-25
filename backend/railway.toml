@@ -10,6 +10,8 @@ healthcheckPath = "/api/"
 sleepApplication = false
 useLegacyStacker = false
 ipv6EgressEnabled = true
-multiRegionConfig = {"asia-southeast1-eqsg3a":{"numReplicas":1}}
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+
+[deploy.multiRegionConfig."asia-southeast1-eqsg3a"]
+numReplicas = 1
