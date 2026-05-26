@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from auth import hash_password, verify_password
 from db import db
@@ -164,32 +163,6 @@ async def seed_portfolio() -> None:
     await db.portfolio.insert_many(docs)
 
 
-async def write_test_credentials() -> None:
-    p = Path("/app/memory")
-    p.mkdir(parents=True, exist_ok=True)
-    (p / "test_credentials.md").write_text(
-        f"""# Test Credentials — Illuminate Studios
-
-## Admin (photographer)
-- email: {os.environ['ADMIN_EMAIL']}
-- password: {os.environ['ADMIN_PASSWORD']}
-- role: admin
-
-## Test client
-- email: client@example.com
-- password: client123
-- role: user
-
-## Auth endpoints
-- POST /api/auth/register
-- POST /api/auth/login
-- POST /api/auth/logout
-- GET  /api/auth/me
-- POST /api/auth/refresh
-"""
-    )
-
-
 async def run_seed() -> None:
     await db.users.create_index("email", unique=True)
     await db.bookings.create_index("user_id")
@@ -202,4 +175,3 @@ async def run_seed() -> None:
     await seed_test_user()
     await seed_services()
     await seed_portfolio()
-    await write_test_credentials()
