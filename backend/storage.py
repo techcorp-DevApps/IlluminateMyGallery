@@ -149,12 +149,28 @@ class S3StorageAdapter:
 
 
 # ============================================================================
-# Pick a backend at import time
+# Pick a backend lazily (first use), not at import time
 # ============================================================================
-def _make_storage():
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def get_storage():
     if os.environ.get("S3_BUCKET"):
         return S3StorageAdapter()
     return MongoStorageAdapter()
 
 
-storage = _make_storage()
+class _LazyStorage:
+    """Proxy that resolves to the configured adapter on first attribute access.
+
+    Defers S3/boto3 client construction until storage is actually used, so the
+    module imports cleanly regardless of environment. Callers keep using
+    ``from storage import storage``.
+    """
+
+    def __getattr__(self, name: str):
+        return getattr(get_storage(), name)
+
+
+storage = _LazyStorage()

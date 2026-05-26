@@ -196,14 +196,10 @@ async def tool_handoff_to_human(args: Dict[str, Any], state: BookingState) -> Di
 # ----- LLM call -----
 
 def _llm_params(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Pick credentials provider in this order — both paths are vendor-neutral
-    `litellm` calls; only the api_base differs.
+    """Build the litellm call parameters for a direct OpenAI request.
 
-      1. OPENAI_API_KEY  — direct OpenAI (preferred; full budget control).
-      2. EMERGENT_LLM_KEY — proxied via the Emergent LLM gateway (optional dev fallback).
-
-    To drop the Emergent fallback entirely: remove the `elif emergent_key` branch
-    below and delete `EMERGENT_LLM_KEY` / `INTEGRATION_PROXY_URL` from .env.
+    Requires ``OPENAI_API_KEY``. The model is configurable via ``LUMA_MODEL``
+    (defaults to ``DEFAULT_MODEL``). No vendor gateway or proxy is involved.
     """
     model = os.environ.get("LUMA_MODEL", DEFAULT_MODEL)
     base: Dict[str, Any] = {
@@ -215,22 +211,12 @@ def _llm_params(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         "temperature": 0.4,
     }
     openai_key = os.environ.get("OPENAI_API_KEY")
-    if openai_key:
-        base["api_key"] = openai_key
-        return base
-    # ---- Emergent LLM fallback (optional, dev convenience) ----
-    emergent_key = os.environ.get("EMERGENT_LLM_KEY")
-    if emergent_key:
-        proxy_url = os.environ.get(
-            "INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com"
+    if not openai_key:
+        raise RuntimeError(
+            "No LLM credentials configured. Set OPENAI_API_KEY in the environment."
         )
-        base["api_key"] = emergent_key
-        base["api_base"] = proxy_url + "/llm"
-        base["custom_llm_provider"] = "openai"
-        return base
-    raise RuntimeError(
-        "No LLM credentials configured. Set OPENAI_API_KEY in .env."
-    )
+    base["api_key"] = openai_key
+    return base
 
 
 async def _llm_call(messages: List[Dict[str, Any]]):

@@ -333,8 +333,9 @@ def fill_placeholders(body: str, ctx: Dict) -> str:
             h, m = start_time.split(":")
             total_min = int(h) * 60 + int(m) + int(duration)
             end_time = f"{(total_min // 60) % 24:02d}:{total_min % 60:02d}"
-        except Exception:
-            pass
+        except (ValueError, AttributeError):
+            # Malformed start_time/duration — leave end_time unset (optional field).
+            end_time = None
 
     mapping = {
         "[Client name(s)]": ctx.get("client_name", "[Client name(s)]"),
