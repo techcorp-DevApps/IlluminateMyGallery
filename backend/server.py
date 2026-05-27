@@ -72,24 +72,30 @@ for r in (
 
 
 # CORS — explicit origins so cookies work cross-site
-_cors_origins_env = os.environ.get("CORS_ORIGINS", "*")
-if _cors_origins_env.strip() == "*":
-    # Wildcard is a development fallback only. Browsers refuse credentials with a
-    # wildcard origin, and reflecting any origin while allowing credentials is
-    # unsafe, so credentials are disabled here. Set CORS_ORIGINS explicitly in
-    # production to enable cross-site cookies.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "").strip()
+
+if not _cors_origins_env:
+    # Sensible defaults for local development plus optional deployment-provided
+    # frontend URL. This avoids silently falling back to wildcard CORS, which
+    # breaks credentialed browser requests.
+    fallback_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    frontend_url = os.environ.get("FRONTEND_URL", "").strip()
+    if frontend_url:
+        fallback_origins.insert(0, frontend_url)
+    _cors_origins = fallback_origins
+elif _cors_origins_env == "*":
+    # Wildcard can be used for non-credentialed development traffic only.
+    _cors_origins = ["*"]
 else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[o.strip() for o in _cors_origins_env.split(",") if o.strip()],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    _cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
