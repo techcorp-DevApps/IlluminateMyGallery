@@ -73,6 +73,7 @@ for r in (
 
 # CORS — explicit origins so cookies work cross-site
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "").strip()
+_cors_origin_regex = os.environ.get("CORS_ORIGIN_REGEX", "").strip() or None
 
 if not _cors_origins_env:
     # Sensible defaults for local development plus optional deployment-provided
@@ -95,6 +96,7 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
