@@ -72,6 +72,49 @@
     }
 }
 
+/* ============================================================
+   DESIGN-SYSTEM SEMANTIC UTILITIES (Phase 1 — additive only)
+   New classes render identical output to the inline patterns
+   they formalise; old inline patterns continue to work.
+   ============================================================ */
+
+@layer components {
+  /* Layout shell ─ replaces max-w-[1400px] mx-auto px-6 md:px-12 lg:px-16 */
+  .container-shell {
+    @apply max-w-shell mx-auto px-6 md:px-12 lg:px-16;
+  }
+
+  /* Micro-label ─ replaces text-[10px] uppercase tracking-[0.3em] font-medium */
+  .label-caps {
+    @apply text-[10px] uppercase tracking-caps font-medium;
+  }
+
+  /* Editorial button base (shared structure) */
+  .btn-editorial-base {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap
+           text-xs uppercase tracking-caps-cta font-medium
+           px-6 py-4 transition-colors focus-visible:outline-none
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* Filled — bg-foreground / text-background (matches Landing hero CTAs) */
+  .btn-editorial-primary {
+    @apply btn-editorial-base bg-foreground text-background
+           hover:opacity-90 transition-opacity;
+  }
+
+  /* Bordered — matches outline CTAs */
+  .btn-editorial-outline {
+    @apply btn-editorial-base border border-foreground
+           hover:bg-foreground hover:text-background;
+  }
+
+  /* Ghost — text-only quiet link style */
+  .btn-editorial-ghost {
+    @apply btn-editorial-base hover:opacity-60;
+  }
+}
+
 /* Sharp corners by default — override shadcn defaults */
 .rounded,
 .rounded-md,

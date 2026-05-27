@@ -19,12 +19,20 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // Editorial brand variants — uppercase, tracked, sharp-edged
+        "editorial-primary":
+          "text-xs uppercase tracking-caps-cta bg-foreground text-background hover:opacity-90 transition-opacity",
+        "editorial-outline":
+          "text-xs uppercase tracking-caps-cta border border-foreground hover:bg-foreground hover:text-background",
+        "editorial-ghost":
+          "text-xs uppercase tracking-caps-cta hover:opacity-60 transition-opacity",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
         icon: "h-9 w-9",
+        editorial: "px-6 py-4",
       },
     },
     defaultVariants: {

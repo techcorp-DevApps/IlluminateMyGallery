@@ -61,6 +61,14 @@ export default {
             animation: {
                 "fade-in": "fade-in 0.6s ease-out both",
             },
+            letterSpacing: {
+                caps: "0.3em",
+                "caps-wide": "0.4em",
+                "caps-cta": "0.24em",
+            },
+            maxWidth: {
+                shell: "1400px",
+            },
         },
     },
     plugins: [tailwindcssAnimate],
