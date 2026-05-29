@@ -36,6 +36,35 @@ class UserOut(BaseModel):
     created_at: str
 
 
+# --- Task 2 auth foundation (magic link, set-password, staff invite, claim) ---
+class MagicLinkRequestIn(BaseModel):
+    email: EmailStr
+
+
+class TokenIn(BaseModel):
+    token: str
+
+
+class SetPasswordIn(BaseModel):
+    password: str = Field(min_length=6)
+
+
+class StaffInviteIn(BaseModel):
+    email: EmailStr
+    role: str  # "admin" | "editor"
+
+
+class StaffAcceptIn(BaseModel):
+    token: str
+    name: str
+    password: str = Field(min_length=6)
+
+
+class GalleryTokenCreateIn(BaseModel):
+    """Optionally email the generated gallery access link to the client."""
+    send_email: bool = False
+
+
 # --- Portfolio (public galleries showcasing the photographer's work) ---
 class PortfolioItemIn(BaseModel):
     title: str

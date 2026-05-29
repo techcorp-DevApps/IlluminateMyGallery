@@ -234,6 +234,59 @@ async def email_invoice_sent_to_client(invoice: dict, client_email: str) -> None
     )
 
 
+def _token_link(path: str, token: str) -> str:
+    """Build a tokenised action link on the public frontend (falls back to a
+    relative path if APP_PUBLIC_URL is unset)."""
+    return f"{_public_url()}{path}?token={token}"
+
+
+async def email_magic_link_to_client(email: str, token: str) -> None:
+    link = _token_link("/auth/magic", token)
+    body = """
+    <p>Use the button below to sign in to your Illuminate Studios portal.</p>
+    <p>This link is valid for <strong>15 minutes</strong> and can be used once. If
+    you didn't request it, you can safely ignore this email.</p>
+    """
+    await _send(
+        email,
+        "Your Illuminate Studios sign-in link",
+        _wrap("Sign in", "Your secure sign-in link.", body, ("Sign in", link)),
+        "magic_link_client",
+    )
+
+
+async def email_staff_invite(email: str, role: str, token: str) -> None:
+    link = _token_link("/staff/accept", token)
+    body = f"""
+    <p>You've been invited to join the Illuminate Studios team as
+    <strong>{role}</strong>.</p>
+    <p>Set your password using the button below to activate your account. This
+    invite expires in <strong>7 days</strong>.</p>
+    """
+    await _send(
+        email,
+        "You're invited to Illuminate Studios",
+        _wrap("Team invite", "Join the studio.", body, ("Accept invite", link)),
+        "staff_invite",
+    )
+
+
+async def email_gallery_access_to_client(email: str, gallery_title: str, token: str) -> None:
+    link = _token_link("/gallery/claim", token)
+    body = f"""
+    <p>Your gallery <strong>{gallery_title}</strong> is ready to view.</p>
+    <p>Open it with the button below. The first time you visit you'll be asked to
+    set a password so you can return any time. This link is valid for
+    <strong>14 days</strong>.</p>
+    """
+    await _send(
+        email,
+        f"Your gallery is ready · {gallery_title}",
+        _wrap("Gallery", "Your photographs are ready.", body, ("View my gallery", link)),
+        "gallery_access_client",
+    )
+
+
 async def email_luma_handoff_to_admin(handoff: dict) -> None:
     admin = _admin_addr()
     if not admin:
