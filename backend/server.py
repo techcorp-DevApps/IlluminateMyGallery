@@ -21,6 +21,7 @@ from routes.invoices_routes import router as invoices_router
 from routes.luma_routes import router as luma_router
 from routes.portfolio_routes import router as portfolio_router
 from routes.services_routes import router as services_router
+from routes.staff_routes import router as staff_router
 from seed import run_seed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -56,6 +57,7 @@ async def root():
 # Mount routers
 for r in (
     auth_router,
+    staff_router,
     portfolio_router,
     services_router,
     bookings_router,
