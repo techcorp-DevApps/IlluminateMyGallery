@@ -227,3 +227,23 @@ Proceed with the Task 2 build sequence (brief §10), in priority order:
 
 Run the build through `automate-dev`, one task at a time. Update this record on each
 material decision.
+
+---
+
+## 9. Engineering process — git & branch lifecycle **[DECIDED 2026-05-31]**
+
+Incident: Task 2 Priority 2 was believed "built and committed", but `origin/main`
+(after squash-merge PR #10) held only the Priority 1 docs — the auth foundation
+(local commit `1e61164`) never reached `main`. The squash made the source branch
+non-ancestral to `main`, hiding the gap and making `--ff-only` impossible. Recovered by
+cherry-picking the two real commits (`1e61164`, `d130ad0`) onto `origin/main` →
+fast-forward push (`c847870`). No history rewrite.
+
+- **D-9.1** — Squash-merge stays the PR strategy, but the source branch is deleted in
+  the same step as the merge, and follow-on work starts from a fresh branch off updated
+  `main`.
+- **D-9.2** — Never force-push a feature branch over `main`; post-squash, land new
+  commits via cherry-pick / `rebase --onto origin/main`, then fast-forward.
+- **D-9.3** — Session start verifies feature presence on `main`
+  (`git diff --stat origin/main HEAD`), not just "is it committed", before building on
+  prior work.
